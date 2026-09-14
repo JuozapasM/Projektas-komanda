@@ -1,4 +1,4 @@
-import type { GameDate, ReservationEvent, Seat } from "./types";
+import type { GameDate, ParticipantActivity, ReservationEvent, Seat } from "./types";
 
 export const gameDates: GameDate[] = [
   { id: "game-1", label: "Spalio 10", day: "PEN", date: "10 SPAL", time: "19:00", seatsLeft: 7 },
@@ -19,4 +19,14 @@ export const reservationEvents: ReservationEvent[] = [
   { id: "event-2", action: "Rezervacija", user: "Ieva", seat: "2 stalas / 1 vieta", date: "10 spalio", time: "2026-09-14 18:37" },
   { id: "event-3", action: "Atšaukimas", user: "Karolis", seat: "1 stalas / 4 vieta", date: "10 spalio", time: "2026-09-14 17:12" },
   { id: "event-4", action: "Rezervacija", user: "Tomas", seat: "3 stalas / 4 vieta", date: "10 spalio", time: "2026-09-13 20:05" },
+];
+
+export const participantActivity: ParticipantActivity[] = [
+  { id: "participant-1", name: "Mantas", login: "2026-09-14 18:42", logout: "Dar prisijungęs", status: "Prisijungęs" },
+  { id: "participant-2", name: "Ieva", login: "2026-09-14 18:37", logout: "2026-09-14 19:04", status: "Atsijungęs" },
+  { id: "participant-3", name: "Tomas", login: "2026-09-14 18:21", logout: "Dar prisijungęs", status: "Prisijungęs" },
+  { id: "participant-4", name: "Rūta", login: "2026-09-14 17:58", logout: "2026-09-14 18:51", status: "Atsijungęs" },
+  { id: "participant-5", name: "Darius", login: "2026-09-14 17:43", logout: "2026-09-14 18:32", status: "Atsijungęs" },
+  { id: "participant-6", name: "Gabija", login: "2026-09-14 17:26", logout: "Dar prisijungęs", status: "Prisijungęs" },
+  { id: "participant-7", name: "Lukas", login: "2026-09-14 17:12", logout: "2026-09-14 18:20", status: "Atsijungęs" },
 ];

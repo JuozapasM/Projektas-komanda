@@ -11,3 +11,5 @@ npm run dev
 ```
 
 Demonstracinėje versijoje registracija ir rezervacijos veikia naršyklėje. Supabase schema paruošta faile `supabase/migrations/202609140001_initial_schema.sql`.
+
+Administratoriaus demonstracinis prisijungimas: `*****` / `*******`.
