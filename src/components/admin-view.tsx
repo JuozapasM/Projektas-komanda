@@ -1,8 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { gameDates, participantActivity, reservationEvents } from "@/lib/mock-data";
-import { allTimeWinners } from "@/lib/mock-data";
+import { allTimeWinners, gameDates, participantActivity, reservationEvents } from "@/lib/mock-data";
 import type { GameDate, WinnerTeam } from "@/lib/types";
 import { WinnersBoard } from "./winners-board";
 
