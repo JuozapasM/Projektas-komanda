@@ -1,0 +1,22 @@
+import type { GameDate, ReservationEvent, Seat } from "./types";
+
+export const gameDates: GameDate[] = [
+  { id: "game-1", label: "Spalio 10", day: "PEN", date: "10 SPAL", time: "19:00", seatsLeft: 7 },
+  { id: "game-2", label: "Spalio 17", day: "PEN", date: "17 SPAL", time: "19:00", seatsLeft: 16 },
+  { id: "game-3", label: "Spalio 24", day: "PEN", date: "24 SPAL", time: "19:00", seatsLeft: 16 },
+];
+
+export function createSeats(): Seat[] {
+  const occupied: Record<number, string> = { 2: "Mantas", 5: "Ieva", 8: "Tomas", 10: "Rūta", 13: "Darius", 15: "Gabija", 16: "Lukas" };
+  return Array.from({ length: 16 }, (_, index) => {
+    const seatNumber = index + 1;
+    return { id: `seat-${seatNumber}`, tableNumber: Math.ceil(seatNumber / 4), seatNumber: ((seatNumber - 1) % 4) + 1, occupant: occupied[seatNumber], status: occupied[seatNumber] ? "occupied" : "free" };
+  });
+}
+
+export const reservationEvents: ReservationEvent[] = [
+  { id: "event-1", action: "Rezervacija", user: "Mantas", seat: "2 stalas / 2 vieta", date: "10 spalio", time: "2026-09-14 18:42" },
+  { id: "event-2", action: "Rezervacija", user: "Ieva", seat: "2 stalas / 1 vieta", date: "10 spalio", time: "2026-09-14 18:37" },
+  { id: "event-3", action: "Atšaukimas", user: "Karolis", seat: "1 stalas / 4 vieta", date: "10 spalio", time: "2026-09-14 17:12" },
+  { id: "event-4", action: "Rezervacija", user: "Tomas", seat: "3 stalas / 4 vieta", date: "10 spalio", time: "2026-09-13 20:05" },
+];
