@@ -140,6 +140,7 @@ button { cursor: pointer; }
   line-height: 1.5;
   font-size: 13px;
 }
+
 .form-stack { display: grid; gap: 12px; margin-top: 22px; }
 .field {
   display: grid;
@@ -174,16 +175,12 @@ button { cursor: pointer; }
   background: linear-gradient(135deg, var(--gold) 0%, #b98d2f 100%);
   box-shadow: 0 12px 22px rgba(217, 179, 99, 0.2);
 }
-.primary-btn:hover {
-  transform: translateY(-1px);
-}
+.primary-btn:hover { transform: translateY(-1px); }
 .ghost-btn {
   color: var(--paper-2);
   background: #edf4f2;
 }
-.ghost-btn:hover {
-  background: #e0efe9;
-}
+.ghost-btn:hover { background: #e0efe9; }
 .danger-btn {
   color: #9d392b;
   background: #f9e4de;
@@ -218,12 +215,13 @@ button { cursor: pointer; }
   color: var(--ink);
 }
 .header-actions { display: flex; gap: 10px; align-items: center; }
+
 .date-strip,
 .admin-date-strip {
   display: flex;
   gap: 10px;
-  padding-bottom: 24px;
   overflow-x: auto;
+  padding-bottom: 24px;
 }
 .date-button,
 .admin-date {
@@ -232,12 +230,16 @@ button { cursor: pointer; }
   border: 1px solid var(--line);
   border-radius: 12px;
   color: var(--muted);
-  background: rgba(255,255,255,0.05);
+  background: rgba(255, 255, 255, 0.05);
   text-align: left;
   transition: all .2s ease;
 }
-.date-button strong, .date-button span,
-.admin-date strong, .admin-date span { display: block; }
+.date-button strong,
+.date-button span,
+.admin-date strong,
+.admin-date span {
+  display: block;
+}
 .date-button strong,
 .admin-date strong {
   margin-top: 6px;
@@ -267,8 +269,8 @@ button { cursor: pointer; }
 .room-grid { display: grid; grid-template-columns: 1.25fr .75fr; gap: 24px; }
 .panel {
   border: 1px solid var(--line);
-  border-radius: 18px;
-  background: rgba(255,255,255,0.04);
+  border-radius: 19px;
+  background: rgba(255, 255, 255, 0.04);
   box-shadow: 0 8px 20px rgba(3, 12, 11, 0.2);
 }
 .room-panel { padding: 22px; }
@@ -302,7 +304,7 @@ button { cursor: pointer; }
   padding: 16px;
   border: 1px solid var(--line);
   border-radius: 12px;
-  background: rgba(255,255,255,0.06);
+  background: rgba(255, 255, 255, 0.06);
 }
 .table-title { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; }
 .table-title strong {
@@ -317,7 +319,7 @@ button { cursor: pointer; }
   border: 1px solid var(--line);
   border-radius: 9px;
   text-align: left;
-  background: rgba(255,255,255,0.04);
+  background: rgba(255, 255, 255, 0.04);
 }
 .seat-number {
   display: block;
@@ -337,7 +339,8 @@ button { cursor: pointer; }
 .seat.free { border-style: dashed; color: var(--teal); }
 .seat.free .seat-name { color: var(--teal); }
 .seat.mine { border-color: rgba(217, 179, 99, 0.8); background: rgba(217, 179, 99, 0.12); }
-.seat.occupied { background: rgba(255,255,255,0.02); }
+.seat.mine .seat-name { color: #f5e7b7; font-weight: 700; }
+.seat.occupied { background: rgba(255, 255, 255, 0.02); }
 .side-stack { display: grid; gap: 20px; align-content: start; }
 .reservation-card, .stats-card { padding: 22px; }
 .reservation-seat { display: flex; align-items: center; gap: 14px; margin: 18px 0; }
@@ -377,12 +380,13 @@ button { cursor: pointer; }
   box-shadow: var(--shadow);
   font-size: 12px;
 }
+
 .admin-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 18px; }
 .metric {
   padding: 18px;
   border: 1px solid var(--line);
   border-radius: 14px;
-  background: rgba(255,255,255,0.04);
+  background: rgba(255, 255, 255, 0.04);
 }
 .metric span { color: var(--muted); font-size: 11px; }
 .metric strong {
@@ -405,20 +409,102 @@ button { cursor: pointer; }
 }
 .status.cancelled { color: #ffd7d1; background: rgba(234, 141, 114, 0.14); }
 
+.winners-section {
+  max-width: 1240px;
+  margin: 0 auto;
+  padding: 10px 24px 90px;
+}
+.section-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: end;
+  gap: 24px;
+  margin-bottom: 24px;
+}
+.section-heading h2 {
+  margin: 10px 0 0;
+  font-size: clamp(31px, 4vw, 52px);
+  letter-spacing: -.07em;
+  color: var(--ink);
+}
+.winners-grid { display: grid; grid-template-columns: 1.2fr .8fr; gap: 24px; }
+.winners-panel { padding: 28px; }
+.winner-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.winner-table th { color: var(--muted); font-size: 11px; font-weight: 500; letter-spacing: .06em; text-align: left; text-transform: uppercase; }
+.winner-table th, .winner-table td { padding: 15px 10px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+.winner-table tr:last-child td { border-bottom: 0; }
+.place {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  color: var(--ink);
+  background: #e7e4d8;
+  font-weight: 800;
+}
+.place-1 { background: #f3c94f; }
+.place-2 { background: #d9e1e4; }
+.place-3 { background: #e6b18b; }
+.points {
+  color: var(--teal-dark);
+  font-weight: 800;
+  text-align: right;
+  white-space: nowrap;
+}
+.points small { color: var(--muted); font-size: 11px; font-weight: 500; }
+
+.winners-form {
+  display: grid;
+  gap: 18px;
+  margin-bottom: 24px;
+  padding: 24px 28px;
+}
+.winners-form .panel-heading { margin-bottom: 0; }
+.winner-form-row {
+  display: grid;
+  grid-template-columns: 70px 1fr 110px;
+  gap: 14px;
+  align-items: center;
+  padding-top: 15px;
+  border-top: 1px solid var(--line);
+}
+.winner-player-fields { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.winner-player-fields input, .points-field input {
+  width: 100%;
+  padding: 11px 12px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  color: var(--ink);
+  background: rgba(255, 255, 255, 0.04);
+}
+.points-field {
+  display: grid;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 11px;
+}
+.admin-page > .room-panel + .room-panel { margin-top: 24px; }
+
 @media (max-width: 850px) {
-  .landing, .room-grid { grid-template-columns: 1fr; }
+  .landing, .room-grid, .winners-grid { grid-template-columns: 1fr; }
   .landing { gap: 30px; padding-top: 10px; }
   .login-card { margin: 0; }
   .dashboard-header { align-items: start; flex-direction: column; }
   .date-form { grid-template-columns: 1fr; }
   .admin-grid { grid-template-columns: 1fr; }
+  .dashboard-header .header-actions { width: 100%; flex-wrap: wrap; }
+  .winner-form-row { grid-template-columns: 1fr; }
 }
 @media (max-width: 560px) {
-  .topbar, .dashboard, .admin-page, .landing { padding-left: 18px; padding-right: 18px; }
+  .topbar, .dashboard, .admin-page, .landing, .winners-section { padding-left: 18px; padding-right: 18px; }
   .topbar { padding-top: 18px; }
   .landing h1 { font-size: 48px; }
-  .login-card, .room-panel { padding: 20px; }
+  .login-card, .room-panel, .winners-panel { padding: 20px; }
   .tables { grid-template-columns: 1fr; }
-  .admin-table { min-width: 650px; }
-  .panel:has(.admin-table) { overflow-x: auto; }
+  .admin-table, .winner-table { min-width: 650px; }
+  .panel:has(.admin-table), .panel:has(.winner-table) { overflow-x: auto; }
+  .date-form { align-items: stretch; flex-direction: column; }
+  .winner-player-fields { grid-template-columns: 1fr 1fr; }
+  .section-heading { align-items: start; flex-direction: column; }
 }
