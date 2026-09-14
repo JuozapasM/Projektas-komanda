@@ -14,6 +14,13 @@ npm run dev
 
 Atidarykite [http://localhost:3000](http://localhost:3000). Prieš naudojant Supabase funkcijas, `.env.local` faile įrašykite savo projekto reikšmes iš Supabase nustatymų.
 
+Supabase schema yra dviejose migracijose:
+
+- `supabase/migrations/202609140001_initial_schema.sql` sukuria lenteles ir bazines RLS taisykles.
+- `supabase/migrations/202609140002_enable_app_access_and_seed.sql` įjungia aplikacijos prieigą, sukuria pradines žaidimų datas su vietomis ir įrašo administratorių.
+
+Antrą migraciją paleiskite Supabase Dashboard → SQL Editor, jei ji dar nebuvo pritaikyta projekte. Po jos aplikacija gali naudoti Supabase registracijai, prisijungimui, vietų rezervavimui ir atšaukimui.
+
 ## Komandos
 
 ```bash
