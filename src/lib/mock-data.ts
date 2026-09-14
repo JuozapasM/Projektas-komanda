@@ -1,4 +1,4 @@
-import type { GameDate, ParticipantActivity, ReservationEvent, Seat } from "./types";
+import type { AllTimeWinner, GameDate, ParticipantActivity, ReservationEvent, Seat, WinnerTeam } from "./types";
 
 export const gameDates: GameDate[] = [
   { id: "game-1", label: "Spalio 10", day: "PEN", date: "10 SPAL", time: "19:00", seatsLeft: 7 },
@@ -29,4 +29,16 @@ export const participantActivity: ParticipantActivity[] = [
   { id: "participant-5", name: "Darius", login: "2026-09-14 17:43", logout: "2026-09-14 18:32", status: "Atsijungęs" },
   { id: "participant-6", name: "Gabija", login: "2026-09-14 17:26", logout: "Dar prisijungęs", status: "Prisijungęs" },
   { id: "participant-7", name: "Lukas", login: "2026-09-14 17:12", logout: "2026-09-14 18:20", status: "Atsijungęs" },
+];
+
+export const lastGameWinners: WinnerTeam[] = [
+  { place: 1, players: ["Mantas", "Ieva", "Tomas", "Rūta"], points: 42, gameDate: "10 spalio" },
+  { place: 2, players: ["Darius", "Gabija", "Lukas"], points: 36, gameDate: "10 spalio" },
+  { place: 3, players: ["Karolis", "Agnė", "Paulius", "Eglė"], points: 31, gameDate: "10 spalio" },
+];
+
+export const allTimeWinners: AllTimeWinner[] = [
+  { name: "Mantas", points: 184, gamesPlayed: 8 },
+  { name: "Ieva", points: 176, gamesPlayed: 8 },
+  { name: "Tomas", points: 169, gamesPlayed: 7 },
 ];
