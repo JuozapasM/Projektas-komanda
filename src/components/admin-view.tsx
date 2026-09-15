@@ -1,21 +1,34 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { allTimeWinners, gameDates as fallbackDates, participantActivity, reservationEvents as fallbackEvents } from "@/lib/mock-data";
-import { createClient } from "@/lib/supabase/client";
-import { getGameDates, getReservationEvents } from "@/lib/supabase/queries";
-import { hasSupabaseConfig, rejectReservation } from "@/lib/supabase/reservations";
-import type { GameDate, WinnerTeam } from "@/lib/types";
+import { createGameDate } from "@/lib/supabase/admin";
+import { getGameDates, getOnlineCount, getReservationEvents } from "@/lib/supabase/queries";
+import { rejectReservation } from "@/lib/supabase/reservations";
+import type { AllTimeWinner, GameDate, ReservationEvent, WinnerTeam } from "@/lib/types";
 import { WinnersBoard } from "./winners-board";
 
-export function AdminView({ winners, onSaveWinners, onLogout }: { winners: WinnerTeam[]; onSaveWinners: (winners: WinnerTeam[]) => void; onLogout: () => void }) {
-  const [dates, setDates] = useState<GameDate[]>(fallbackDates);
+function winnerFields(winners: WinnerTeam[]): WinnerTeam[] {
+  return ([1, 2, 3] as const).map((place) => {
+    const winner = winners.find((item) => item.place === place);
+    return { place, players: [...(winner?.players ?? []), "", "", "", ""].slice(0, 4),
+      points: winner?.points ?? 0, gameDate: winners[0]?.gameDate ?? "Paskutinis žaidimas" };
+  });
+}
+
+export function AdminView({ userName, winners, allTimeWinners, onSaveWinners, onLogout }: {
+  userName: string; winners: WinnerTeam[]; allTimeWinners: AllTimeWinner[];
+  onSaveWinners: (winners: WinnerTeam[]) => Promise<string | null>; onLogout: () => Promise<string | null>;
+}) {
+  const [dates, setDates] = useState<GameDate[]>([]);
   const [showDateForm, setShowDateForm] = useState(false);
   const [newDate, setNewDate] = useState("");
   const [newTime, setNewTime] = useState("19:00");
   const [showWinnerForm, setShowWinnerForm] = useState(false);
-  const [winnerDraft, setWinnerDraft] = useState<WinnerTeam[]>(winners.map((winner) => ({ ...winner, players: [...winner.players, "", "", "", ""].slice(0, 4) })));
-  const [events, setEvents] = useState(fallbackEvents);
+  const [winnerDraft, setWinnerDraft] = useState<WinnerTeam[]>(() => winnerFields(winners));
+  const [events, setEvents] = useState<ReservationEvent[]>([]);
+  const [onlineCount, setOnlineCount] = useState(0);
+  const [savingWinners, setSavingWinners] = useState(false);
+  const [savingDate, setSavingDate] = useState(false);
   const [notice, setNotice] = useState("");
   const [rejectingId, setRejectingId] = useState<string | null>(null);
 
@@ -23,13 +36,15 @@ export function AdminView({ winners, onSaveWinners, onLogout }: { winners: Winne
     let active = true;
 
     async function loadAdminData() {
-      const [nextDates, nextEvents] = await Promise.all([getGameDates(), getReservationEvents()]);
+      const [nextDates, nextEvents, online] = await Promise.all([getGameDates(), getReservationEvents(), getOnlineCount()]);
       if (!active) return;
-      setDates(nextDates);
-      setEvents(nextEvents);
+      if (nextDates.data) setDates(nextDates.data);
+      if (nextEvents.data) setEvents(nextEvents.data);
+      if (online.data !== null) setOnlineCount(online.data);
+      setNotice(nextDates.error || nextEvents.error || online.error || "");
     }
 
-    loadAdminData();
+    loadAdminData().catch(() => { if (active) setNotice("Nepavyko įkelti duomenų."); });
     return () => {
       active = false;
     };
@@ -39,53 +54,31 @@ export function AdminView({ winners, onSaveWinners, onLogout }: { winners: Winne
     event.preventDefault();
     if (!newDate || !newTime) return;
 
-    if (hasSupabaseConfig()) {
-      const client = createClient();
-      const { error } = await client.rpc("create_game_date", { date_time: new Date(`${newDate}T${newTime}:00`).toISOString() });
-
-      if (error) {
-        setNotice(error.message || "Nepavyko sukurti naujos žaidimo datos.");
-        return;
-      }
-
-      setDates(await getGameDates());
+    setSavingDate(true);
+    try {
+      const result = await createGameDate(new Date(`${newDate}T${newTime}:00`).toISOString());
+      if (result.error) { setNotice(result.error); return; }
+      const nextDates = await getGameDates();
+      if (nextDates.data) setDates(nextDates.data);
+      setNotice(nextDates.error || "Žaidimo data išsaugota.");
       setNewDate("");
       setNewTime("19:00");
       setShowDateForm(false);
-      return;
-    }
-
-    const [, month, day] = newDate.split("-");
-    const monthNames = ["SAUS", "VAS", "KOV", "BAL", "GEG", "BIR", "LIE", "RGP", "RGS", "SPA", "LAP", "GRU"];
-    const date: GameDate = {
-      id: `game-${Date.now()}`,
-      label: `${day} ${monthNames[Number(month) - 1]}`,
-      day: new Date(`${newDate}T12:00:00`).toLocaleDateString("lt-LT", { weekday: "short" }).replace(".", "").toUpperCase(),
-      date: `${day} ${monthNames[Number(month) - 1]}`,
-      time: newTime,
-      seatsLeft: 16,
-    };
-
-    setDates([date, ...dates]);
-    setNewDate("");
-    setNewTime("19:00");
-    setShowDateForm(false);
+    } catch { setNotice("Nepavyko išsaugoti žaidimo datos."); }
+    finally { setSavingDate(false); }
   }
 
   async function handleReject(reservationId: string) {
     setRejectingId(reservationId);
-    const response = await rejectReservation(reservationId);
-    setRejectingId(null);
-
-    if (!response.ok) {
-      setNotice(response.error || "Nepavyko atmesti rezervacijos.");
-      return;
-    }
-
-    const [nextEvents, nextDates] = await Promise.all([getReservationEvents(), getGameDates()]);
-    setEvents(nextEvents);
-    setDates(nextDates);
-    setNotice("Rezervacija atmesta, vieta atlaisvinta.");
+    try {
+      const response = await rejectReservation(reservationId);
+      if (response.error) { setNotice(response.error); return; }
+      const [nextEvents, nextDates] = await Promise.all([getReservationEvents(), getGameDates()]);
+      if (nextEvents.data) setEvents(nextEvents.data);
+      if (nextDates.data) setDates(nextDates.data);
+      setNotice(nextEvents.error || nextDates.error || "Rezervacija atmesta, vieta atlaisvinta.");
+    } catch { setNotice("Nepavyko atmesti rezervacijos."); }
+    finally { setRejectingId(null); }
   }
 
   function updateWinnerPlayer(place: number, playerIndex: number, value: string) {
@@ -98,13 +91,19 @@ export function AdminView({ winners, onSaveWinners, onLogout }: { winners: Winne
     );
   }
 
-  function saveWinners(event: React.FormEvent) {
+  async function saveWinners(event: React.FormEvent) {
     event.preventDefault();
-    onSaveWinners(winnerDraft.map((winner) => ({ ...winner, players: winner.players.map((player) => player.trim()).filter(Boolean) })));
-    setShowWinnerForm(false);
+    setSavingWinners(true);
+    try {
+      const error = await onSaveWinners(winnerDraft.map((winner) => ({ ...winner, players: winner.players.map((player) => player.trim()).filter(Boolean) })));
+      if (error) { setNotice(error); return; }
+      setShowWinnerForm(false);
+      setNotice("Nugalėtojai išsaugoti.");
+    } catch { setNotice("Nepavyko išsaugoti nugalėtojų."); }
+    finally { setSavingWinners(false); }
   }
 
-  const activeDate = dates[0] ?? fallbackDates[0];
+  const activeDate = dates[0];
 
   return (
     <main className="app-background">
@@ -114,8 +113,8 @@ export function AdminView({ winners, onSaveWinners, onLogout }: { winners: Winne
           <span>Auksinis Protas / Admin</span>
         </div>
         <div className="header-actions">
-          <span className="mono">LAIMA</span>
-          <button className="ghost-btn" onClick={onLogout}>Atsijungti</button>
+          <span className="mono">{userName}</span>
+          <button className="ghost-btn" onClick={async () => { const error = await onLogout(); if (error) setNotice(error); }}>Atsijungti</button>
         </div>
       </header>
 
@@ -126,10 +125,12 @@ export function AdminView({ winners, onSaveWinners, onLogout }: { winners: Winne
             <h1>Visa salė vienoje vietoje.</h1>
           </div>
           <div className="header-actions">
-            <button className="ghost-btn" onClick={() => setShowWinnerForm(!showWinnerForm)}>Nugalėtojai</button>
+            <button className="ghost-btn" onClick={() => { if (!showWinnerForm) setWinnerDraft(winnerFields(winners)); setShowWinnerForm(!showWinnerForm); }}>Nugalėtojai</button>
             <button className="primary-btn" onClick={() => setShowDateForm(!showDateForm)}>+ Nauja žaidimo data</button>
           </div>
         </div>
+
+        {notice && <div className="notice" role="status">{notice}</div>}
 
         {showWinnerForm && (
           <form className="panel winners-form" onSubmit={saveWinners}>
@@ -169,7 +170,7 @@ export function AdminView({ winners, onSaveWinners, onLogout }: { winners: Winne
                 </label>
               </div>
             ))}
-            <button className="primary-btn" type="submit">Išsaugoti nugalėtojus</button>
+            <button className="primary-btn" type="submit" disabled={savingWinners}>{savingWinners ? "Saugoma..." : "Išsaugoti nugalėtojus"}</button>
           </form>
         )}
 
@@ -183,7 +184,7 @@ export function AdminView({ winners, onSaveWinners, onLogout }: { winners: Winne
               Pradžios laikas
               <input type="time" value={newTime} onChange={(event) => setNewTime(event.target.value)} required />
             </label>
-            <button className="primary-btn" type="submit">Išsaugoti laiką</button>
+            <button className="primary-btn" type="submit" disabled={savingDate}>{savingDate ? "Saugoma..." : "Išsaugoti laiką"}</button>
           </form>
         )}
 
@@ -202,15 +203,15 @@ export function AdminView({ winners, onSaveWinners, onLogout }: { winners: Winne
         <div className="admin-grid">
           <div className="metric">
             <span>AKTYVI DATA</span>
-            <strong>{activeDate.date}</strong>
+            <strong>{activeDate?.date ?? "—"}</strong>
           </div>
           <div className="metric">
             <span>REZERVACIJOS</span>
-            <strong>{Math.max(0, 16 - activeDate.seatsLeft)} / 16</strong>
+            <strong>{activeDate ? Math.max(0, 16 - activeDate.seatsLeft) : 0} / 16</strong>
           </div>
           <div className="metric">
             <span>PRISIJUNGĘ DABAR</span>
-            <strong>{participantActivity.filter((participant) => participant.status === "Prisijungęs").length}</strong>
+            <strong>{onlineCount}</strong>
           </div>
         </div>
 
@@ -222,8 +223,6 @@ export function AdminView({ winners, onSaveWinners, onLogout }: { winners: Winne
             </div>
             <span className="mono capacity">AUDIT LOG</span>
           </div>
-
-          {notice && <div className="notice">{notice}</div>}
 
           <table className="admin-table">
             <thead>

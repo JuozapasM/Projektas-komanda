@@ -1,99 +1,54 @@
-import { createClient } from "@/lib/supabase/client";
-import { gameDates as fallbackGameDates, reservationEvents as fallbackReservationEvents } from "@/lib/mock-data";
-import type { GameDate, ReservationEvent } from "@/lib/types";
+"use server";
 
-function hasSupabaseConfig() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
-  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "";
+import { checkDatabase, database, publicError } from "@/lib/server/database";
+import { requireUser } from "@/lib/server/session";
+import type { ActionResult, GameDate, ReservationEvent } from "@/lib/types";
 
-  return Boolean(
-    url &&
-    key &&
-    !url.includes("example") &&
-    !url.includes("your-project") &&
-    !key.includes("example") &&
-    !key.includes("your-anon-key")
-  );
+function formatGameDate(value: string) {
+  const date = new Date(value);
+  const format = (options: Intl.DateTimeFormatOptions) => new Intl.DateTimeFormat("lt-LT", { ...options, timeZone: "Europe/Vilnius" }).format(date);
+  return { label: format({ month: "long", day: "numeric" }), day: format({ weekday: "short" }).toUpperCase(),
+    date: format({ day: "2-digit", month: "short" }).toUpperCase(), time: format({ hour: "2-digit", minute: "2-digit", hour12: false }) };
 }
 
-function formatGameDate(dateValue: string) {
-  const date = new Date(dateValue);
-
-  return {
-    label: new Intl.DateTimeFormat("lt-LT", { month: "long", day: "numeric" }).format(date),
-    day: new Intl.DateTimeFormat("lt-LT", { weekday: "short" }).format(date).toUpperCase(),
-    date: new Intl.DateTimeFormat("lt-LT", { day: "2-digit", month: "short" }).format(date).toUpperCase(),
-    time: new Intl.DateTimeFormat("lt-LT", { hour: "2-digit", minute: "2-digit", hour12: false }).format(date),
-  };
+export async function getGameDates(): Promise<ActionResult<GameDate[]>> {
+  try {
+    await requireUser();
+    const db = database();
+    const { data, error } = await db.from("game_dates").select("id, title, starts_at").eq("is_open", true).order("starts_at");
+    checkDatabase(error);
+    const { data: reservations, error: reservationError } = await db.from("reservations").select("game_date_id").eq("status", "active");
+    checkDatabase(reservationError);
+    const occupied = new Map<string, number>();
+    for (const row of reservations ?? []) occupied.set(row.game_date_id, (occupied.get(row.game_date_id) ?? 0) + 1);
+    return { data: (data ?? []).map((game) => ({ id: game.id, ...formatGameDate(game.starts_at),
+      label: game.title || formatGameDate(game.starts_at).label, seatsLeft: Math.max(0, 16 - (occupied.get(game.id) ?? 0)) })), error: null };
+  } catch (error) { return { data: null, error: publicError(error) }; }
 }
 
-export async function getGameDates(): Promise<GameDate[]> {
-  if (!hasSupabaseConfig()) return fallbackGameDates;
-
-  const client = createClient();
-  const { data, error } = await client
-    .from("game_dates")
-    .select("id, title, starts_at, is_open")
-    .eq("is_open", true)
-    .order("starts_at", { ascending: true });
-
-  if (error || !data) return fallbackGameDates;
-
-  const gameIds = data.map((game) => game.id);
-  const occupiedByGame = new Map<string, number>();
-
-  if (gameIds.length) {
-    const { data: reservationRows } = await client
-      .from("reservations")
-      .select("game_date_id")
-      .in("game_date_id", gameIds)
-      .eq("status", "active");
-
-    for (const row of reservationRows ?? []) {
-      occupiedByGame.set(row.game_date_id, (occupiedByGame.get(row.game_date_id) ?? 0) + 1);
-    }
-  }
-
-  return data.map((game) => {
-    const dateInfo = formatGameDate(game.starts_at as string);
-    const occupied = occupiedByGame.get(game.id) ?? 0;
-
-    return {
-      id: game.id,
-      label: game.title || dateInfo.label,
-      day: dateInfo.day,
-      date: dateInfo.date,
-      time: dateInfo.time,
-      seatsLeft: Math.max(0, 16 - occupied),
-    };
-  });
+export async function getReservationEvents(): Promise<ActionResult<ReservationEvent[]>> {
+  try {
+    await requireUser(true);
+    const { data, error } = await database().from("reservation_events")
+      .select("id, action, user_name, table_number, seat_number, occurred_at, reservation_id, game_dates(starts_at), reservations(status)").order("occurred_at", { ascending: false });
+    checkDatabase(error);
+    return { data: (data ?? []).map((event) => {
+      const game = event.game_dates as unknown as { starts_at: string } | null;
+      const reservation = event.reservations as unknown as { status: string } | null;
+      return { id: event.id, action: event.action === "cancelled" ? "Atšaukimas" : event.action === "rejected" ? "Atmesta" : "Rezervacija",
+        user: event.user_name, seat: `${event.table_number} stalas / ${event.seat_number} vieta`,
+        date: formatGameDate(game?.starts_at ?? event.occurred_at).date,
+        time: new Intl.DateTimeFormat("lt-LT", { timeZone: "Europe/Vilnius", dateStyle: "short", timeStyle: "medium" }).format(new Date(event.occurred_at)),
+        reservationId: event.reservation_id ?? undefined, rejectable: event.action === "reserved" && reservation?.status === "active" };
+    }), error: null };
+  } catch (error) { return { data: null, error: publicError(error) }; }
 }
 
-export async function getReservationEvents(): Promise<ReservationEvent[]> {
-  if (!hasSupabaseConfig()) return fallbackReservationEvents;
-
-  const client = createClient();
-  const { data, error } = await client
-    .from("reservation_events")
-    .select("id, action, user_name, table_number, seat_number, occurred_at, reservation_id, reservations(status)")
-    .order("occurred_at", { ascending: false });
-
-  if (error || !data) return fallbackReservationEvents;
-
-  return data.map((event) => {
-    const action = event.action === "cancelled" ? "Atšaukimas" : event.action === "rejected" ? "Atmesta" : "Rezervacija";
-    const dateInfo = formatGameDate(event.occurred_at as string);
-    const reservationStatus = (event.reservations as { status?: string } | null)?.status;
-
-    return {
-      id: event.id,
-      action,
-      user: event.user_name,
-      seat: `${event.table_number} stalas / ${event.seat_number} vieta`,
-      date: dateInfo.date,
-      time: `${dateInfo.time}`,
-      reservationId: event.reservation_id ?? undefined,
-      rejectable: event.action === "reserved" && reservationStatus === "active",
-    };
-  });
+export async function getOnlineCount(): Promise<ActionResult<number>> {
+  try {
+    await requireUser(true);
+    const { data, error } = await database().from("app_sessions").select("user_id").gt("expires_at", new Date().toISOString());
+    checkDatabase(error);
+    return { data: new Set((data ?? []).map((session) => session.user_id)).size, error: null };
+  } catch (error) { return { data: null, error: publicError(error) }; }
 }

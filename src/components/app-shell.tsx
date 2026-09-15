@@ -1,12 +1,12 @@
 "use client";
 
-import { useState } from "react";
-import { loginUser, registerUser } from "@/lib/auth";
+import { useEffect, useState } from "react";
+import { getCurrentUser, loginUser, logoutUser, registerUser } from "@/lib/auth";
 import { AdminView } from "./admin-view";
 import { ParticipantDashboard } from "./participant-dashboard";
 import { WinnersBoard } from "./winners-board";
-import { allTimeWinners, lastGameWinners } from "@/lib/mock-data";
-import type { WinnerTeam } from "@/lib/types";
+import { getWinners, saveWinnerResults } from "@/lib/supabase/winners";
+import type { AllTimeWinner, WinnerTeam } from "@/lib/types";
 
 export function AppShell() {
   const [session, setSession] = useState<"landing" | "participant" | "admin">("landing");
@@ -15,10 +15,53 @@ export function AppShell() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [winners, setWinners] = useState<WinnerTeam[]>(lastGameWinners);
+  const [winners, setWinners] = useState<WinnerTeam[]>([]);
+  const [allTimeWinners, setAllTimeWinners] = useState<AllTimeWinner[]>([]);
+  const [isRestoring, setIsRestoring] = useState(true);
 
-  if (session === "participant") return <ParticipantDashboard userName={name} onLogout={() => setSession("landing")} />;
-  if (session === "admin") return <AdminView winners={winners} onSaveWinners={setWinners} onLogout={() => setSession("landing")} />;
+  useEffect(() => {
+    let active = true;
+    async function restore() {
+      const [userResult, winnerResult] = await Promise.all([getCurrentUser(), getWinners()]);
+      if (!active) return;
+      if (winnerResult.data) {
+        setWinners(winnerResult.data.winners);
+        setAllTimeWinners(winnerResult.data.allTime);
+      }
+      if (userResult.error || winnerResult.error) setError(userResult.error || winnerResult.error || "");
+      if (userResult.data) {
+        setName(userResult.data.name);
+        setSession(userResult.data.role);
+      }
+      setIsRestoring(false);
+    }
+    restore().catch(() => {
+      if (active) { setError("Nepavyko įkelti duomenų. Bandykite dar kartą."); setIsRestoring(false); }
+    });
+    return () => { active = false; };
+  }, []);
+
+  async function logout(): Promise<string | null> {
+    try {
+      const result = await logoutUser();
+      if (result.error !== null) return result.error;
+      setPassword("");
+      setName("");
+      setError("");
+      setSession("landing");
+      return null;
+    } catch { return "Nepavyko atsijungti. Bandykite dar kartą."; }
+  }
+
+  async function persistWinners(next: WinnerTeam[]) {
+    const result = await saveWinnerResults(next);
+    if (result.error !== null) return result.error;
+    setWinners(result.data);
+    return null;
+  }
+
+  if (session === "participant") return <ParticipantDashboard userName={name} onLogout={logout} />;
+  if (session === "admin") return <AdminView userName={name} winners={winners} allTimeWinners={allTimeWinners} onSaveWinners={persistWinners} onLogout={logout} />;
 
   async function submit(event: React.FormEvent) {
     event.preventDefault();
@@ -30,16 +73,25 @@ export function AppShell() {
     setIsSubmitting(true);
     setError("");
 
-    const user = register ? await registerUser(name, password) : await loginUser(name, password);
+    let result;
+    try {
+      result = register ? await registerUser(name, password) : await loginUser(name, password);
+    } catch {
+      setIsSubmitting(false);
+      setError("Nepavyko prisijungti. Bandykite dar kartą.");
+      return;
+    }
+    const user = result.data;
 
     setIsSubmitting(false);
 
     if (!user) {
-      setError(register ? "Tokio userio sukurti nepavyko arba vardas jau užimtas." : "Neteisingas vardas arba slaptažodis.");
+      setError(result.error || "Nepavyko prisijungti.");
       return;
     }
 
     setName(user.name);
+    setPassword("");
 
     if (user.role === "admin") {
       setSession("admin");
@@ -99,8 +151,8 @@ export function AppShell() {
               <input value={password} onChange={(event) => setPassword(event.target.value)} placeholder="mažiausiai 4 simboliai" type="password" autoComplete={register ? "new-password" : "current-password"} />
             </label>
             {error && <span className="error">{error}</span>}
-            <button className="primary-btn" type="submit" disabled={isSubmitting}>
-              {isSubmitting ? "Keliama..." : register ? "Sukurti paskyrą" : "Prisijungti"}
+            <button className="primary-btn" type="submit" disabled={isSubmitting || isRestoring}>
+              {isRestoring ? "Kraunama..." : isSubmitting ? "Keliama..." : register ? "Sukurti paskyrą" : "Prisijungti"}
             </button>
           </form>
 
@@ -116,7 +168,7 @@ export function AppShell() {
           </button>
 
           <div className="demo-hint">
-            Administratoriaus prieiga: vardas <strong>Laima</strong>, slaptažodis <strong>laima26</strong>. Sistema neturi el. pašto, verifikacijos ar atkūrimo.
+            Prisijunkite savo vardu ir slaptažodžiu. Dėl paskyros pagalbos kreipkitės į žaidimo organizatorių.
           </div>
         </div>
       </section>

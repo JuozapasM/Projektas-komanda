@@ -15,3 +15,5 @@ export type ReservationEvent = {
 export type ParticipantActivity = { id: string; name: string; login: string; logout: string; status: "Prisijungęs" | "Atsijungęs" };
 export type WinnerTeam = { place: 1 | 2 | 3; players: string[]; points: number; gameDate: string };
 export type AllTimeWinner = { name: string; points: number; gamesPlayed: number };
+export type AppUser = { id: string; name: string; role: "participant" | "admin" };
+export type ActionResult<T> = { data: T; error: null } | { data: null; error: string };
