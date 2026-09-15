@@ -6,26 +6,10 @@ import { getGameDates } from "@/lib/supabase/queries";
 import { cancelSeatForUser, loadSeatBoard, reserveSeatForUser } from "@/lib/supabase/reservations";
 import type { Seat } from "@/lib/types";
 
-const STORAGE_KEY = "auksinis-protas-seats";
-
 export function ParticipantDashboard({ userName, onLogout }: { userName: string; onLogout: () => void }) {
   const [gameDates, setGameDates] = useState(fallbackGameDates);
   const [selectedDate, setSelectedDate] = useState(fallbackGameDates[0].id);
-  const [seats, setSeats] = useState<Seat[]>(() => {
-    if (typeof window === "undefined") return createSeats();
-
-    try {
-      const saved = window.localStorage.getItem(STORAGE_KEY);
-      if (!saved) return createSeats();
-
-      const parsed = JSON.parse(saved) as Seat[];
-      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
-    } catch {
-      // Ignore invalid saved state and fall back to generated seats.
-    }
-
-    return createSeats();
-  });
+  const [seats, setSeats] = useState<Seat[]>(() => createSeats());
   const [notice, setNotice] = useState("");
 
   useEffect(() => {
@@ -59,12 +43,6 @@ export function ParticipantDashboard({ userName, onLogout }: { userName: string;
       active = false;
     };
   }, [selectedDate, userName]);
-
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(seats));
-    }
-  }, [seats]);
 
   const mine = seats.find((seat) => seat.status === "mine");
   const selectedGame = gameDates.find((game) => game.id === selectedDate) ?? gameDates[0];

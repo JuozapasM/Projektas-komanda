@@ -185,7 +185,17 @@ button { cursor: pointer; }
   color: #9d392b;
   background: #f9e4de;
 }
+.danger-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 .error { color: #d75d4a; font-size: 12px; }
+.notice {
+  margin-top: 12px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  background: rgba(217, 179, 99, 0.14);
+  color: var(--gold-soft);
+  font-size: 13px;
+  font-weight: 600;
+}
 .demo-hint {
   margin-top: 16px;
   padding-top: 14px;
@@ -408,6 +418,7 @@ button { cursor: pointer; }
   font-size: 10px;
 }
 .status.cancelled { color: #ffd7d1; background: rgba(234, 141, 114, 0.14); }
+.status.rejected { color: #f5e7b7; background: rgba(217, 179, 99, 0.14); }
 
 .winners-section {
   max-width: 1240px;

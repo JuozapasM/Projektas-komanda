@@ -39,8 +39,24 @@ export async function getGameDates(): Promise<GameDate[]> {
 
   if (error || !data) return fallbackGameDates;
 
+  const gameIds = data.map((game) => game.id);
+  const occupiedByGame = new Map<string, number>();
+
+  if (gameIds.length) {
+    const { data: reservationRows } = await client
+      .from("reservations")
+      .select("game_date_id")
+      .in("game_date_id", gameIds)
+      .eq("status", "active");
+
+    for (const row of reservationRows ?? []) {
+      occupiedByGame.set(row.game_date_id, (occupiedByGame.get(row.game_date_id) ?? 0) + 1);
+    }
+  }
+
   return data.map((game) => {
     const dateInfo = formatGameDate(game.starts_at as string);
+    const occupied = occupiedByGame.get(game.id) ?? 0;
 
     return {
       id: game.id,
@@ -48,7 +64,7 @@ export async function getGameDates(): Promise<GameDate[]> {
       day: dateInfo.day,
       date: dateInfo.date,
       time: dateInfo.time,
-      seatsLeft: 16,
+      seatsLeft: Math.max(0, 16 - occupied),
     };
   });
 }
@@ -59,14 +75,15 @@ export async function getReservationEvents(): Promise<ReservationEvent[]> {
   const client = createClient();
   const { data, error } = await client
     .from("reservation_events")
-    .select("id, action, user_name, table_number, seat_number, occurred_at")
+    .select("id, action, user_name, table_number, seat_number, occurred_at, reservation_id, reservations(status)")
     .order("occurred_at", { ascending: false });
 
   if (error || !data) return fallbackReservationEvents;
 
   return data.map((event) => {
-    const action = event.action === "cancelled" ? "Atšaukimas" : "Rezervacija";
+    const action = event.action === "cancelled" ? "Atšaukimas" : event.action === "rejected" ? "Atmesta" : "Rezervacija";
     const dateInfo = formatGameDate(event.occurred_at as string);
+    const reservationStatus = (event.reservations as { status?: string } | null)?.status;
 
     return {
       id: event.id,
@@ -75,6 +92,8 @@ export async function getReservationEvents(): Promise<ReservationEvent[]> {
       seat: `${event.table_number} stalas / ${event.seat_number} vieta`,
       date: dateInfo.date,
       time: `${dateInfo.time}`,
+      reservationId: event.reservation_id ?? undefined,
+      rejectable: event.action === "reserved" && reservationStatus === "active",
     };
   });
 }

@@ -8,6 +8,10 @@ function normalizeName(value: string) {
   return value.trim().replace(/\s+/g, " ");
 }
 
+function escapeLikePattern(value: string) {
+  return value.replace(/[%_\\]/g, (match) => `\\${match}`);
+}
+
 function getSeatBoardStorageKey(gameDateId: string) {
   return `${LOCAL_STORAGE_PREFIX}-${gameDateId}`;
 }
@@ -93,7 +97,7 @@ export async function loadSeatBoard(gameDateId: string, userName: string): Promi
 
   return seatRows.map((seat) => {
     const occupant = occupantBySeat.get(seat.id);
-    const isMine = Boolean(occupant && userName && occupant.toLowerCase() === userName.toLowerCase());
+    const isMine = Boolean(occupant && userName && occupant.toLowerCase() === normalizeName(userName).toLowerCase());
 
     return {
       id: seat.id,
@@ -145,7 +149,7 @@ export async function reserveSeatForUser(gameDateId: string, userName: string) {
   const { data: userRow, error: userError } = await client
     .from("users")
     .select("id, name")
-    .eq("name", userName)
+    .ilike("name", escapeLikePattern(normalizedUserName))
     .maybeSingle();
 
   if (userError || !userRow) {
@@ -199,7 +203,7 @@ export async function reserveSeatForUser(gameDateId: string, userName: string) {
 
   await client.from("reservation_events").insert({
     game_date_id: gameDateId,
-    user_name: userName,
+    user_name: userRow.name,
     table_number: chosenSeat.table_number,
     seat_number: chosenSeat.seat_number,
     action: "reserved",
@@ -210,7 +214,7 @@ export async function reserveSeatForUser(gameDateId: string, userName: string) {
       id: chosenSeat.id,
       tableNumber: chosenSeat.table_number,
       seatNumber: chosenSeat.seat_number,
-      occupant: userName,
+      occupant: userRow.name,
       status: "mine",
     },
   };
@@ -241,8 +245,8 @@ export async function cancelSeatForUser(gameDateId: string, userName: string) {
 
   const { data: userRow, error: userError } = await client
     .from("users")
-    .select("id")
-    .eq("name", userName)
+    .select("id, name")
+    .ilike("name", escapeLikePattern(normalizedUserName))
     .maybeSingle();
 
   if (userError || !userRow) {
@@ -278,10 +282,59 @@ export async function cancelSeatForUser(gameDateId: string, userName: string) {
 
   await client.from("reservation_events").insert({
     game_date_id: gameDateId,
-    user_name: userName,
+    user_name: userRow.name,
     table_number: seatRow?.table_number ?? 0,
     seat_number: seatRow?.seat_number ?? 0,
     action: "cancelled",
+  });
+
+  return { ok: true };
+}
+
+export async function rejectReservation(reservationId: string) {
+  if (!hasSupabaseConfig()) {
+    return { ok: false, error: "Atmesti galima tik prijungus Supabase." };
+  }
+
+  const client = createClient();
+
+  const { data: reservationRow, error: reservationError } = await client
+    .from("reservations")
+    .select("id, game_date_id, seat_id, user_id, status")
+    .eq("id", reservationId)
+    .maybeSingle();
+
+  if (reservationError || !reservationRow) {
+    return { ok: false, error: "Rezervacijos nerasta." };
+  }
+
+  if (reservationRow.status !== "active") {
+    return { ok: false, error: "Rezervacija jau atšaukta arba atmesta." };
+  }
+
+  const { error: updateError } = await client
+    .from("reservations")
+    .update({ status: "cancelled", cancelled_at: new Date().toISOString() })
+    .eq("id", reservationId);
+
+  if (updateError) {
+    return { ok: false, error: updateError.message || "Nepavyko atmesti rezervacijos." };
+  }
+
+  const { data: userRow } = await client.from("users").select("name").eq("id", reservationRow.user_id).maybeSingle();
+  const { data: seatRow } = await client
+    .from("seats")
+    .select("table_number, seat_number")
+    .eq("id", reservationRow.seat_id)
+    .maybeSingle();
+
+  await client.from("reservation_events").insert({
+    reservation_id: reservationId,
+    game_date_id: reservationRow.game_date_id,
+    user_name: userRow?.name ?? "Nežinomas",
+    table_number: seatRow?.table_number ?? 0,
+    seat_number: seatRow?.seat_number ?? 0,
+    action: "rejected",
   });
 
   return { ok: true };

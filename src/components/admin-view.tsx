@@ -2,7 +2,9 @@
 
 import { useEffect, useState } from "react";
 import { allTimeWinners, gameDates as fallbackDates, participantActivity, reservationEvents as fallbackEvents } from "@/lib/mock-data";
-import { getReservationEvents } from "@/lib/supabase/queries";
+import { createClient } from "@/lib/supabase/client";
+import { getGameDates, getReservationEvents } from "@/lib/supabase/queries";
+import { hasSupabaseConfig, rejectReservation } from "@/lib/supabase/reservations";
 import type { GameDate, WinnerTeam } from "@/lib/types";
 import { WinnersBoard } from "./winners-board";
 
@@ -14,24 +16,44 @@ export function AdminView({ winners, onSaveWinners, onLogout }: { winners: Winne
   const [showWinnerForm, setShowWinnerForm] = useState(false);
   const [winnerDraft, setWinnerDraft] = useState<WinnerTeam[]>(winners.map((winner) => ({ ...winner, players: [...winner.players, "", "", "", ""].slice(0, 4) })));
   const [events, setEvents] = useState(fallbackEvents);
+  const [notice, setNotice] = useState("");
+  const [rejectingId, setRejectingId] = useState<string | null>(null);
 
   useEffect(() => {
     let active = true;
 
-    async function loadEvents() {
-      const nextEvents = await getReservationEvents();
-      if (active) setEvents(nextEvents);
+    async function loadAdminData() {
+      const [nextDates, nextEvents] = await Promise.all([getGameDates(), getReservationEvents()]);
+      if (!active) return;
+      setDates(nextDates);
+      setEvents(nextEvents);
     }
 
-    loadEvents();
+    loadAdminData();
     return () => {
       active = false;
     };
   }, []);
 
-  function addGameDate(event: React.FormEvent) {
+  async function addGameDate(event: React.FormEvent) {
     event.preventDefault();
     if (!newDate || !newTime) return;
+
+    if (hasSupabaseConfig()) {
+      const client = createClient();
+      const { error } = await client.rpc("create_game_date", { date_time: new Date(`${newDate}T${newTime}:00`).toISOString() });
+
+      if (error) {
+        setNotice(error.message || "Nepavyko sukurti naujos žaidimo datos.");
+        return;
+      }
+
+      setDates(await getGameDates());
+      setNewDate("");
+      setNewTime("19:00");
+      setShowDateForm(false);
+      return;
+    }
 
     const [, month, day] = newDate.split("-");
     const monthNames = ["SAUS", "VAS", "KOV", "BAL", "GEG", "BIR", "LIE", "RGP", "RGS", "SPA", "LAP", "GRU"];
@@ -48,6 +70,22 @@ export function AdminView({ winners, onSaveWinners, onLogout }: { winners: Winne
     setNewDate("");
     setNewTime("19:00");
     setShowDateForm(false);
+  }
+
+  async function handleReject(reservationId: string) {
+    setRejectingId(reservationId);
+    const response = await rejectReservation(reservationId);
+    setRejectingId(null);
+
+    if (!response.ok) {
+      setNotice(response.error || "Nepavyko atmesti rezervacijos.");
+      return;
+    }
+
+    const [nextEvents, nextDates] = await Promise.all([getReservationEvents(), getGameDates()]);
+    setEvents(nextEvents);
+    setDates(nextDates);
+    setNotice("Rezervacija atmesta, vieta atlaisvinta.");
   }
 
   function updateWinnerPlayer(place: number, playerIndex: number, value: string) {
@@ -168,7 +206,7 @@ export function AdminView({ winners, onSaveWinners, onLogout }: { winners: Winne
           </div>
           <div className="metric">
             <span>REZERVACIJOS</span>
-            <strong>09 / 16</strong>
+            <strong>{Math.max(0, 16 - activeDate.seatsLeft)} / 16</strong>
           </div>
           <div className="metric">
             <span>PRISIJUNGĘ DABAR</span>
@@ -185,6 +223,8 @@ export function AdminView({ winners, onSaveWinners, onLogout }: { winners: Winne
             <span className="mono capacity">AUDIT LOG</span>
           </div>
 
+          {notice && <div className="notice">{notice}</div>}
+
           <table className="admin-table">
             <thead>
               <tr>
@@ -200,7 +240,7 @@ export function AdminView({ winners, onSaveWinners, onLogout }: { winners: Winne
               {events.map((event) => (
                 <tr key={event.id}>
                   <td>
-                    <span className={`status ${event.action === "Atšaukimas" ? "cancelled" : ""}`}>{event.action}</span>
+                    <span className={`status ${event.action === "Atšaukimas" ? "cancelled" : event.action === "Atmesta" ? "rejected" : ""}`}>{event.action}</span>
                   </td>
                   <td>
                     <strong>{event.user}</strong>
@@ -209,7 +249,15 @@ export function AdminView({ winners, onSaveWinners, onLogout }: { winners: Winne
                   <td>{event.date}</td>
                   <td className="mono">{event.time}</td>
                   <td>
-                    <button className="danger-btn">Atmesti</button>
+                    {event.rejectable && event.reservationId && (
+                      <button
+                        className="danger-btn"
+                        disabled={rejectingId === event.reservationId}
+                        onClick={() => handleReject(event.reservationId!)}
+                      >
+                        {rejectingId === event.reservationId ? "Atmetama..." : "Atmesti"}
+                      </button>
+                    )}
                   </td>
                 </tr>
               ))}

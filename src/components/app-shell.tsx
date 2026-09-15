@@ -39,6 +39,8 @@ export function AppShell() {
       return;
     }
 
+    setName(user.name);
+
     if (user.role === "admin") {
       setSession("admin");
       return;

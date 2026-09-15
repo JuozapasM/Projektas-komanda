@@ -19,6 +19,10 @@ function normalizeName(value: string) {
   return value.trim().replace(/\s+/g, " ");
 }
 
+function escapeLikePattern(value: string) {
+  return value.replace(/[%_\\]/g, (match) => `\\${match}`);
+}
+
 function normalizeStoredUsers(users: unknown): StoredUser[] {
   if (!Array.isArray(users)) return [];
 
@@ -108,7 +112,7 @@ export async function loginUser(name: string, password: string): Promise<AppUser
       const { data, error } = await client
         .from("users")
         .select("name, password_hash, role")
-        .eq("name", normalizedName)
+        .ilike("name", escapeLikePattern(normalizedName))
         .maybeSingle();
 
       if (!error && data && bcrypt.compareSync(password, data.password_hash)) {
@@ -137,7 +141,7 @@ export async function registerUser(name: string, password: string): Promise<AppU
       const { data, error } = await client
         .from("users")
         .select("name")
-        .eq("name", normalizedName)
+        .ilike("name", escapeLikePattern(normalizedName))
         .maybeSingle();
 
       if (!error && data) return null;
