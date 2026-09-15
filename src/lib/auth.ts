@@ -19,6 +19,28 @@ function normalizeName(value: string) {
   return value.trim().replace(/\s+/g, " ");
 }
 
+function normalizeStoredUsers(users: unknown): StoredUser[] {
+  if (!Array.isArray(users)) return [];
+
+  return users.flatMap((entry) => {
+    if (!entry || typeof entry !== "object") return [];
+
+    const record = entry as Partial<StoredUser> & { password_hash?: string };
+    const name = normalizeName(typeof record.name === "string" ? record.name : "");
+    const passwordHash = typeof record.passwordHash === "string" ? record.passwordHash : record.password_hash ?? "";
+    const role = record.role === "admin" ? "admin" : "participant";
+
+    if (!name || !passwordHash) return [];
+
+    return [{
+      id: typeof record.id === "string" ? record.id : undefined,
+      name,
+      passwordHash,
+      role,
+    }];
+  });
+}
+
 function hasSupabaseConfig() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
   const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "";
@@ -38,21 +60,34 @@ function readStoredUsers(): StoredUser[] {
 
   try {
     const saved = window.localStorage.getItem(USERS_KEY);
-    return saved ? (JSON.parse(saved) as StoredUser[]) : [];
+    if (!saved) return [];
+
+    const parsed = JSON.parse(saved) as unknown;
+    const users = normalizeStoredUsers(parsed);
+
+    if (users.length !== (Array.isArray(parsed) ? parsed.length : 0)) {
+      writeStoredUsers(users);
+    }
+
+    return users;
   } catch {
+    window.localStorage.removeItem(USERS_KEY);
     return [];
   }
 }
 
 function writeStoredUsers(users: StoredUser[]) {
   if (typeof window === "undefined") return;
-  window.localStorage.setItem(USERS_KEY, JSON.stringify(users));
+  window.localStorage.setItem(USERS_KEY, JSON.stringify(users.map((user) => ({
+    ...user,
+    name: normalizeName(user.name),
+  }))));
 }
 
 function ensureSeededUsers() {
   const users = readStoredUsers();
 
-  if (users.some((user) => user.name.toLowerCase() === "laima")) return users;
+  if (users.some((user) => normalizeName(user.name).toLowerCase() === "laima")) return users;
 
   const seeded: StoredUser[] = [
     ...users,

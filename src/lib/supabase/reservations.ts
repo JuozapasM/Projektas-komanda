@@ -2,6 +2,37 @@ import { createClient } from "@/lib/supabase/client";
 import { createSeats } from "@/lib/mock-data";
 import type { Seat } from "@/lib/types";
 
+const LOCAL_STORAGE_PREFIX = "auksinis-protas-seats";
+
+function normalizeName(value: string) {
+  return value.trim().replace(/\s+/g, " ");
+}
+
+function getSeatBoardStorageKey(gameDateId: string) {
+  return `${LOCAL_STORAGE_PREFIX}-${gameDateId}`;
+}
+
+function readLocalSeatBoard(gameDateId: string): Seat[] {
+  if (typeof window === "undefined") return createSeats();
+
+  try {
+    const saved = window.localStorage.getItem(getSeatBoardStorageKey(gameDateId));
+    if (!saved) return createSeats();
+
+    const parsed = JSON.parse(saved) as unknown;
+    if (Array.isArray(parsed) && parsed.length > 0) return parsed as Seat[];
+  } catch {
+    // Ignore invalid saved state and fall back to generated seats.
+  }
+
+  return createSeats();
+}
+
+function writeLocalSeatBoard(gameDateId: string, seats: Seat[]) {
+  if (typeof window === "undefined") return;
+  window.localStorage.setItem(getSeatBoardStorageKey(gameDateId), JSON.stringify(seats));
+}
+
 export function hasSupabaseConfig() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
   const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "";
@@ -17,7 +48,13 @@ export function hasSupabaseConfig() {
 }
 
 export async function loadSeatBoard(gameDateId: string, userName: string): Promise<Seat[]> {
-  if (!hasSupabaseConfig()) return createSeats();
+  if (!hasSupabaseConfig()) {
+    const seats = readLocalSeatBoard(gameDateId);
+    return seats.map((seat) => ({
+      ...seat,
+      status: seat.occupant && userName && seat.occupant.toLowerCase() === normalizeName(userName).toLowerCase() ? "mine" : seat.occupant ? "occupied" : "free",
+    }));
+  }
 
   const client = createClient();
   const { data: seatRows, error: seatError } = await client
@@ -69,8 +106,38 @@ export async function loadSeatBoard(gameDateId: string, userName: string): Promi
 }
 
 export async function reserveSeatForUser(gameDateId: string, userName: string) {
+  const normalizedUserName = normalizeName(userName);
+
   if (!hasSupabaseConfig()) {
-    return { error: "Supabase is not configured." };
+    const seats = readLocalSeatBoard(gameDateId);
+    const existingSeat = seats.find((seat) => seat.occupant && seat.occupant.toLowerCase() === normalizedUserName.toLowerCase());
+
+    if (existingSeat) {
+      return { error: "Jau turite rezervaciją šiam žaidimui." };
+    }
+
+    const chosenSeat = seats.find((seat) => seat.status === "free");
+    if (!chosenSeat) {
+      return { error: "Šiai datai laisvų vietų nebėra." };
+    }
+
+    const nextSeats: Seat[] = seats.map((seat) =>
+      seat.id === chosenSeat.id
+        ? { ...seat, occupant: normalizedUserName, status: "mine" }
+        : { ...seat, status: seat.occupant ? "occupied" : "free" },
+    );
+
+    writeLocalSeatBoard(gameDateId, nextSeats);
+
+    return {
+      seat: {
+        id: chosenSeat.id,
+        tableNumber: chosenSeat.tableNumber,
+        seatNumber: chosenSeat.seatNumber,
+        occupant: normalizedUserName,
+        status: "mine",
+      },
+    };
   }
 
   const client = createClient();
@@ -150,8 +217,24 @@ export async function reserveSeatForUser(gameDateId: string, userName: string) {
 }
 
 export async function cancelSeatForUser(gameDateId: string, userName: string) {
+  const normalizedUserName = normalizeName(userName);
+
   if (!hasSupabaseConfig()) {
-    return { ok: false, error: "Supabase is not configured." };
+    const seats = readLocalSeatBoard(gameDateId);
+    const targetSeat = seats.find((seat) => seat.occupant && seat.occupant.toLowerCase() === normalizedUserName.toLowerCase());
+
+    if (!targetSeat) {
+      return { ok: false, error: "Rezervacijos nerasta." };
+    }
+
+    const nextSeats: Seat[] = seats.map((seat) =>
+      seat.id === targetSeat.id
+        ? { ...seat, occupant: undefined, status: "free" }
+        : { ...seat, status: seat.occupant ? "occupied" : "free" },
+    );
+
+    writeLocalSeatBoard(gameDateId, nextSeats);
+    return { ok: true };
   }
 
   const client = createClient();
