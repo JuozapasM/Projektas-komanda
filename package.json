@@ -8,7 +8,14 @@
     "start": "next start",
     "lint": "eslint",
     "setup:admin": "node --env-file-if-exists=.env.local scripts/setup-admin.mjs",
-    "test": "node --test tests/*.test.mjs"
+    "test": "node --test tests/*.test.mjs",
+    "supabase:login": "supabase login",
+    "supabase:link": "supabase link",
+    "supabase:status": "supabase migration list",
+    "supabase:plan": "supabase db push --dry-run --skip-vault",
+    "supabase:push": "supabase db push --skip-vault",
+    "supabase:new": "supabase migration new",
+    "supabase:bundle": "node scripts/build-supabase-bundle.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.7",
@@ -28,6 +35,7 @@
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.3.5",
+    "supabase": "2.117.0",
     "tailwindcss": "^4",
     "typescript": "^5"
   },

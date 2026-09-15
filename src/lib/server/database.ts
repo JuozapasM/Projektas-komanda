@@ -1,11 +1,15 @@
 import "server-only";
-import { createClient } from "@supabase/supabase-js";
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { localDatabase } from "./local-database.mjs";
 
 export class AppError extends Error {}
 
-export function database() {
+export function database(): SupabaseClient {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!url && !key && process.env.NODE_ENV === "development" && !process.env.VERCEL) {
+    return localDatabase();
+  }
   if (!url || !key || url.includes("your-project") || key.includes("your-service-role-key")) {
     throw new AppError("Sistema dar neparuošta. Susisiekite su organizatoriumi.");
   }

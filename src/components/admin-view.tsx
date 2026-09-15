@@ -3,8 +3,8 @@
 import { useEffect, useState } from "react";
 import { createGameDate } from "@/lib/supabase/admin";
 import { getGameDates, getOnlineCount, getReservationEvents } from "@/lib/supabase/queries";
-import { rejectReservation } from "@/lib/supabase/reservations";
-import type { AllTimeWinner, GameDate, ReservationEvent, WinnerTeam } from "@/lib/types";
+import { loadAdminSeatBoard, rejectReservation } from "@/lib/supabase/reservations";
+import type { AdminSeat, AllTimeWinner, GameDate, ReservationEvent, WinnerTeam } from "@/lib/types";
 import { WinnersBoard } from "./winners-board";
 
 function winnerFields(winners: WinnerTeam[]): WinnerTeam[] {
@@ -20,6 +20,8 @@ export function AdminView({ userName, winners, allTimeWinners, onSaveWinners, on
   onSaveWinners: (winners: WinnerTeam[]) => Promise<string | null>; onLogout: () => Promise<string | null>;
 }) {
   const [dates, setDates] = useState<GameDate[]>([]);
+  const [selectedDate, setSelectedDate] = useState("");
+  const [board, setBoard] = useState<{ gameId: string; seats: AdminSeat[]; error: string }>({ gameId: "", seats: [], error: "" });
   const [showDateForm, setShowDateForm] = useState(false);
   const [newDate, setNewDate] = useState("");
   const [newTime, setNewTime] = useState("19:00");
@@ -38,7 +40,10 @@ export function AdminView({ userName, winners, allTimeWinners, onSaveWinners, on
     async function loadAdminData() {
       const [nextDates, nextEvents, online] = await Promise.all([getGameDates(), getReservationEvents(), getOnlineCount()]);
       if (!active) return;
-      if (nextDates.data) setDates(nextDates.data);
+      if (nextDates.data) {
+        setDates(nextDates.data);
+        setSelectedDate(nextDates.data[0]?.id ?? "");
+      }
       if (nextEvents.data) setEvents(nextEvents.data);
       if (online.data !== null) setOnlineCount(online.data);
       setNotice(nextDates.error || nextEvents.error || online.error || "");
@@ -50,6 +55,17 @@ export function AdminView({ userName, winners, allTimeWinners, onSaveWinners, on
     };
   }, []);
 
+  useEffect(() => {
+    if (!selectedDate) return;
+    let active = true;
+    loadAdminSeatBoard(selectedDate).then((result) => {
+      if (active) setBoard({ gameId: selectedDate, seats: result.data ?? [], error: result.error ?? "" });
+    }).catch(() => {
+      if (active) setBoard({ gameId: selectedDate, seats: [], error: "Nepavyko įkelti stalų." });
+    });
+    return () => { active = false; };
+  }, [selectedDate]);
+
   async function addGameDate(event: React.FormEvent) {
     event.preventDefault();
     if (!newDate || !newTime) return;
@@ -59,7 +75,10 @@ export function AdminView({ userName, winners, allTimeWinners, onSaveWinners, on
       const result = await createGameDate(new Date(`${newDate}T${newTime}:00`).toISOString());
       if (result.error) { setNotice(result.error); return; }
       const nextDates = await getGameDates();
-      if (nextDates.data) setDates(nextDates.data);
+      if (nextDates.data) {
+        setDates(nextDates.data);
+        if (!selectedDate) setSelectedDate(nextDates.data[0]?.id ?? "");
+      }
       setNotice(nextDates.error || "Žaidimo data išsaugota.");
       setNewDate("");
       setNewTime("19:00");
@@ -73,10 +92,13 @@ export function AdminView({ userName, winners, allTimeWinners, onSaveWinners, on
     try {
       const response = await rejectReservation(reservationId);
       if (response.error) { setNotice(response.error); return; }
-      const [nextEvents, nextDates] = await Promise.all([getReservationEvents(), getGameDates()]);
+      const [nextEvents, nextDates, nextBoard] = await Promise.all([
+        getReservationEvents(), getGameDates(), selectedDate ? loadAdminSeatBoard(selectedDate) : Promise.resolve(null),
+      ]);
       if (nextEvents.data) setEvents(nextEvents.data);
       if (nextDates.data) setDates(nextDates.data);
-      setNotice(nextEvents.error || nextDates.error || "Rezervacija atmesta, vieta atlaisvinta.");
+      if (nextBoard) setBoard({ gameId: selectedDate, seats: nextBoard.data ?? [], error: nextBoard.error ?? "" });
+      setNotice(nextEvents.error || nextDates.error || nextBoard?.error || "Žaidėjas pašalintas iš rezervuotos vietos, vieta atlaisvinta.");
     } catch { setNotice("Nepavyko atmesti rezervacijos."); }
     finally { setRejectingId(null); }
   }
@@ -103,7 +125,9 @@ export function AdminView({ userName, winners, allTimeWinners, onSaveWinners, on
     finally { setSavingWinners(false); }
   }
 
-  const activeDate = dates[0];
+  const activeDate = dates.find((date) => date.id === selectedDate);
+  const seats = board.gameId === selectedDate ? board.seats : [];
+  const loadingSeats = Boolean(selectedDate) && board.gameId !== selectedDate;
 
   return (
     <main className="app-background">
@@ -189,20 +213,22 @@ export function AdminView({ userName, winners, allTimeWinners, onSaveWinners, on
         )}
 
         <div className="admin-date-strip">
-          {dates.map((date, index) => (
-            <div className={`admin-date ${index === 0 ? "active" : ""}`} key={date.id}>
+          {dates.map((date) => (
+            <button type="button" className={`admin-date ${date.id === selectedDate ? "active" : ""}`} key={date.id}
+              aria-pressed={date.id === selectedDate} disabled={rejectingId !== null}
+              onClick={() => { setSelectedDate(date.id); setNotice(""); }}>
               <span className="mono">{date.day}</span>
               <strong>{date.date}</strong>
               <span>
                 {date.time} / {date.seatsLeft} laisvos
               </span>
-            </div>
+            </button>
           ))}
         </div>
 
         <div className="admin-grid">
           <div className="metric">
-            <span>AKTYVI DATA</span>
+            <span>PASIRINKTA DATA</span>
             <strong>{activeDate?.date ?? "—"}</strong>
           </div>
           <div className="metric">
@@ -214,6 +240,41 @@ export function AdminView({ userName, winners, allTimeWinners, onSaveWinners, on
             <strong>{onlineCount}</strong>
           </div>
         </div>
+
+        <section className="panel room-panel admin-room-panel" aria-label="Stalai ir žaidėjai" aria-busy={loadingSeats}>
+          <div className="panel-heading">
+            <div>
+              <h2>Stalai ir žaidėjai</h2>
+              <p>{activeDate ? `${activeDate.date}, ${activeDate.time}. ` : ""}Pašalinus žaidėją jo vieta atlaisvinama.</p>
+            </div>
+            {activeDate && <span className="mono capacity">{activeDate.seatsLeft} / 16 LAISVŲ</span>}
+          </div>
+          {!selectedDate ? <p role="status">Pasirinkite arba sukurkite žaidimo datą.</p>
+            : loadingSeats ? <p role="status">Įkeliami stalai...</p>
+            : board.error ? <p role="alert">{board.error}</p>
+            : <div className="tables">
+              {[1, 2, 3, 4].map((tableNumber) => {
+                const tableSeats = seats.filter((seat) => seat.tableNumber === tableNumber);
+                return <div className="table-card" key={tableNumber}>
+                  <div className="table-title">
+                    <strong>{tableNumber} stalas</strong>
+                    <span>{tableSeats.filter((seat) => seat.status === "free").length} / 4 laisvos</span>
+                  </div>
+                  <div className="seat-list">
+                    {tableSeats.map((seat) => <div className={`seat admin-seat ${seat.status}`} key={seat.id}>
+                      <span className="seat-number">{seat.seatNumber} vieta</span>
+                      <span className="seat-name">{seat.occupant ?? (seat.status === "free" ? "Laisva" : "Žaidėjas")}</span>
+                      {seat.reservationId && <button type="button" className="danger-btn seat-remove"
+                        disabled={rejectingId !== null} onClick={() => handleReject(seat.reservationId!)}
+                        aria-label={`Pašalinti ${seat.occupant ?? "žaidėją"} iš ${tableNumber} stalo ${seat.seatNumber} vietos`}>
+                        {rejectingId === seat.reservationId ? "Šalinama..." : "Pašalinti"}
+                      </button>}
+                    </div>)}
+                  </div>
+                </div>;
+              })}
+            </div>}
+        </section>
 
         <div className="panel room-panel">
           <div className="panel-heading">
@@ -251,7 +312,7 @@ export function AdminView({ userName, winners, allTimeWinners, onSaveWinners, on
                     {event.rejectable && event.reservationId && (
                       <button
                         className="danger-btn"
-                        disabled={rejectingId === event.reservationId}
+                        disabled={rejectingId !== null}
                         onClick={() => handleReject(event.reservationId!)}
                       >
                         {rejectingId === event.reservationId ? "Atmetama..." : "Atmesti"}

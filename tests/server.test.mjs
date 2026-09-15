@@ -2,6 +2,8 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
+import os from 'node:os';
+import { createLocalDatabase } from '../src/lib/server/local-database.mjs';
 import vm from 'node:vm';
 import ts from 'typescript';
 import bcrypt from 'bcryptjs';
@@ -17,7 +19,7 @@ const GAME = '33333333-3333-4333-8333-333333333333';
 const TOKEN = 'a'.repeat(64);
 const HASH = createHash('sha256').update(TOKEN).digest('hex');
 
-function harness({ signedIn = false, role = 'participant', configured = true } = {}) {
+function harness({ signedIn = false, role = 'participant', configured = true, development = false, localClient = null } = {}) {
   const tables = {
     users: [{id: USER, name: 'Ieva', role, password_hash: bcrypt.hashSync('test-password', 4)}],
     app_sessions: signedIn ? [{token_hash: HASH, user_id: USER, expires_at: new Date(Date.now() + 60000).toISOString()}] : [],
@@ -77,6 +79,7 @@ function harness({ signedIn = false, role = 'participant', configured = true } =
     modules.set(file,mod);
     const source = ts.transpileModule(fs.readFileSync(file,'utf8'), {compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS,esModuleInterop:true}}).outputText;
     const localRequire = spec => {
+      if (spec === './local-database.mjs') return {localDatabase: () => { if (!localClient) throw new Error('Unexpected local database access'); return localClient; }};
       if (spec === 'server-only') return {};
       if (spec === 'next/headers') return {cookies:async()=>cookieStore,headers:async()=>new Map([['x-vercel-forwarded-for','127.0.0.1']])};
       if (spec === '@supabase/supabase-js') return {createClient:()=>db};
@@ -85,7 +88,7 @@ function harness({ signedIn = false, role = 'participant', configured = true } =
       return moduleRequire(spec);
     };
     vm.runInNewContext(`(function(require,module,exports){${source}\n})`, {
-      process:{env:configured ? {NODE_ENV:'production',NEXT_PUBLIC_SUPABASE_URL:'https://test.supabase.co',SUPABASE_SERVICE_ROLE_KEY:'test-server-secret'} : {NODE_ENV:'production'}},
+      process:{env:configured ? {NODE_ENV:'production',NEXT_PUBLIC_SUPABASE_URL:'https://test.supabase.co',SUPABASE_SERVICE_ROLE_KEY:'test-server-secret'} : {NODE_ENV:development ? 'development' : 'production'}},
       TextEncoder, Date, Set, Map, Buffer, console,
     }, {filename:file})(localRequire,mod,mod.exports);
     return mod.exports;
@@ -134,6 +137,7 @@ test('unauthenticated requests cannot mutate reservations or winners or read pri
   const reservations = app.load('src/lib/supabase/reservations.ts');
   const results = await Promise.all([
     reservations.reserveSeatForUser(GAME), reservations.cancelSeatForUser(GAME), reservations.rejectReservation(OTHER),
+    reservations.loadAdminSeatBoard(GAME),
     app.load('src/lib/supabase/admin.ts').createGameDate('2026-12-01T19:00:00+02'),
     app.load('src/lib/supabase/winners.ts').saveWinnerResults(teams()),
     app.load('src/lib/supabase/queries.ts').getReservationEvents(),
@@ -150,6 +154,7 @@ test('reservation identity comes from the verified session, ignoring a forged ca
   assert.equal((await reservations.cancelSeatForUser(GAME,'Other victim')).error,null);
   assert.ok(app.rpcCalls.every(call=>call.args.actor_id===USER));
   assert.ok((await reservations.rejectReservation(OTHER)).error);
+  assert.ok((await reservations.loadAdminSeatBoard(GAME)).error);
   assert.ok((await app.load('src/lib/supabase/winners.ts').saveWinnerResults(teams())).error);
   assert.ok((await app.load('src/lib/supabase/queries.ts').getReservationEvents()).error);
   assert.equal(app.rpcCalls.length,2);
@@ -199,4 +204,93 @@ test('validation rejects bcrypt truncation, duplicate ranks, fractional points, 
   for (const modify of [t=>t[0].place=2,t=>t[0].points=1.5,t=>t[0].players=Array(5).fill('Name'),t=>t[0].gameDate='Different']) {
     const value=teams();modify(value);assert.equal(winnersSchema.safeParse(value).success,false);
   }
+});
+
+
+test('local development without Supabase supports real registration, sessions, reservations, admin edits and disk persistence', async () => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'auksinis-protas-local-'));
+  let runtime = createLocalDatabase(directory);
+  try {
+    const app = harness({configured:false,development:true,localClient:runtime.client});
+    const auth = app.load('src/lib/auth.ts');
+    const register = await auth.registerUser('Vietinis dalyvis','local-test-password');
+    assert.equal(register.error,null);
+    assert.equal(register.data.role,'participant');
+    assert.equal((await auth.getCurrentUser()).data.name,'Vietinis dalyvis');
+    const dates = await app.load('src/lib/supabase/queries.ts').getGameDates();
+    assert.equal(dates.error,null);
+    assert.equal(dates.data.length,3);
+    const game = dates.data[0].id;
+    const actions = app.load('src/lib/supabase/reservations.ts');
+    assert.equal((await actions.reserveSeatForUser(game)).error,null);
+    const board = await actions.loadSeatBoard(game);
+    assert.equal(board.error,null);
+    assert.equal(board.data.length,16);
+    assert.equal(board.data.filter(seat=>seat.status==='mine').length,1);
+    assert.ok((await actions.rejectReservation(OTHER)).error);
+    assert.equal((await actions.cancelSeatForUser(game)).error,null);
+    assert.equal((await actions.loadSeatBoard(game)).data.filter(seat=>seat.status==='mine').length,0);
+    assert.equal((await auth.logoutUser()).error,null);
+    assert.ok((await actions.reserveSeatForUser(game)).error);
+    const credentials = fs.readFileSync(path.join(directory,'admin-credentials.txt'),'utf8');
+    assert.equal(fs.statSync(path.join(directory,'admin-credentials.txt')).mode & 0o777,0o600);
+    const name = credentials.match(/Vardas: (.+)/)[1];
+    const password = credentials.match(/Slaptažodis: (.+)/)[1];
+    assert.equal((await auth.loginUser(name,password)).data.role,'admin');
+    const admin = app.load('src/lib/supabase/admin.ts');
+    assert.equal((await admin.createGameDate('2026-12-05T19:00:00+02:00')).error,null);
+    assert.equal((await app.load('src/lib/supabase/queries.ts').getReservationEvents()).data.length,2);
+    const winners = app.load('src/lib/supabase/winners.ts');
+    const next = teams();next[0].points=77;
+    assert.equal((await winners.saveWinnerResults(next)).error,null);
+    assert.equal((await winners.getWinners()).data.winners[0].points,77);
+    const sessionToken = app.jar.get('auksinis-protas-session');
+    await runtime.close();
+    runtime=createLocalDatabase(directory);
+    const reopened=harness({configured:false,development:true,localClient:runtime.client});
+    reopened.jar.set('auksinis-protas-session',sessionToken);
+    assert.equal((await reopened.load('src/lib/auth.ts').getCurrentUser()).data.role,'admin');
+    assert.equal((await reopened.load('src/lib/supabase/winners.ts').getWinners()).data.winners[0].points,77);
+    assert.equal(fs.readFileSync(path.join(directory,'admin-credentials.txt'),'utf8'),credentials);
+  } finally { await runtime.close();fs.rmSync(directory,{recursive:true,force:true}); }
+});
+
+test('admin sees reservations per game and removes a player, freeing the seat and retaining their account', async () => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'auksinis-protas-admin-board-'));
+  const runtime = createLocalDatabase(directory);
+  try {
+    const participant = harness({configured:false,development:true,localClient:runtime.client});
+    const auth = participant.load('src/lib/auth.ts');
+    assert.equal((await auth.registerUser('Stalo žaidėjas','local-test-password')).error,null);
+    const queries = participant.load('src/lib/supabase/queries.ts');
+    const games = (await queries.getGameDates()).data;
+    const actions = participant.load('src/lib/supabase/reservations.ts');
+    assert.equal((await actions.reserveSeatForUser(games[0].id)).error,null);
+    assert.ok((await actions.loadAdminSeatBoard(games[0].id)).error);
+    const credentials = fs.readFileSync(path.join(directory,'admin-credentials.txt'),'utf8');
+    const admin = harness({configured:false,development:true,localClient:runtime.client});
+    assert.equal((await admin.load('src/lib/auth.ts').loginUser(
+      credentials.match(/Vardas: (.+)/)[1],credentials.match(/Slaptažodis: (.+)/)[1],
+    )).data.role,'admin');
+    const adminActions = admin.load('src/lib/supabase/reservations.ts');
+    assert.ok((await adminActions.loadAdminSeatBoard('invalid-id')).error);
+    const board = await adminActions.loadAdminSeatBoard(games[0].id);
+    assert.equal(board.error,null);
+    assert.equal(board.data.length,16);
+    const occupied = board.data.find(seat=>seat.occupant==='Stalo žaidėjas');
+    assert.ok(occupied.reservationId);
+    assert.equal(occupied.status,'occupied');
+    assert.equal(new Set(board.data.map(seat=>seat.tableNumber)).size,4);
+    assert.ok((await adminActions.loadAdminSeatBoard(games[1].id)).data.every(seat=>seat.status==='free' && !seat.reservationId));
+    assert.ok((await actions.loadSeatBoard(games[0].id)).data.every(seat=>!('reservationId' in seat)));
+    assert.equal((await adminActions.rejectReservation(occupied.reservationId)).error,null);
+    const nextBoard = (await adminActions.loadAdminSeatBoard(games[0].id)).data;
+    assert.ok(nextBoard.every(seat=>seat.status==='free' && !seat.reservationId));
+    assert.equal((await queries.getGameDates()).data.find(game=>game.id===games[0].id).seatsLeft,16);
+    const history = (await admin.load('src/lib/supabase/queries.ts').getReservationEvents()).data;
+    assert.equal(history.filter(event=>event.action==='Atmesta').length,1);
+    assert.equal((await auth.getCurrentUser()).data.name,'Stalo žaidėjas');
+    assert.equal((await actions.loadSeatBoard(games[0].id)).data.filter(seat=>seat.status==='mine').length,0);
+    assert.equal((await actions.reserveSeatForUser(games[0].id)).error,null);
+  } finally { await runtime.close();fs.rmSync(directory,{recursive:true,force:true}); }
 });

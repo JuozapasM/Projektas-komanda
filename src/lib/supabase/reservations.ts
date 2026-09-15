@@ -3,7 +3,23 @@
 import { AppError, checkDatabase, database, publicError } from "@/lib/server/database";
 import { requireUser } from "@/lib/server/session";
 import { uuidSchema } from "@/lib/validation";
-import type { ActionResult, Seat } from "@/lib/types";
+import type { ActionResult, AdminSeat, Seat } from "@/lib/types";
+
+export async function loadAdminSeatBoard(gameDateId: string): Promise<ActionResult<AdminSeat[]>> {
+  try {
+    const user = await requireUser(true);
+    if (!uuidSchema.safeParse(gameDateId).success) throw new AppError("Pasirinkite žaidimo datą.");
+    const { data, error } = await database().from("seats")
+      .select("id, table_number, seat_number, reservations(id, user_id, status, users(name))").eq("game_date_id", gameDateId).order("table_number").order("seat_number");
+    checkDatabase(error);
+    return { data: (data ?? []).map((seat) => {
+      const rows = seat.reservations as unknown as { id: string; user_id: string; status: string; users: { name: string } | null }[];
+      const active = rows.find((row) => row.status === "active");
+      return { id: seat.id, tableNumber: seat.table_number, seatNumber: seat.seat_number, occupant: active?.users?.name,
+        reservationId: active?.id, status: active ? active.user_id === user.id ? "mine" : "occupied" : "free" };
+    }), error: null };
+  } catch (error) { return { data: null, error: publicError(error) }; }
+}
 
 export async function loadSeatBoard(gameDateId: string): Promise<ActionResult<Seat[]>> {
   try {

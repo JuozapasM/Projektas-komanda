@@ -7,11 +7,8 @@ import { PGlite } from '@electric-sql/pglite';
 import { fileURLToPath } from 'node:url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-const migrations = [
-  '202609140001_initial_schema.sql',
-  '202609140002_enable_app_access_and_seed.sql',
-  '202609150001_secure_access_and_winners.sql',
-];
+const migrationDirectory = path.join(__dirname, '../supabase/migrations');
+const migrations = fs.readdirSync(migrationDirectory).filter(name => /^\d+_.+\.sql$/.test(name)).sort();
 
 test('SQL migration protects private records, reservation ownership, and durable winners', async (t) => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'auksinis-protas-test-'));
@@ -30,10 +27,10 @@ test('SQL migration protects private records, reservation ownership, and durable
       alter default privileges in schema public grant all on tables to anon, authenticated, service_role;
     `);
     for (const name of migrations) {
-      let sql = fs.readFileSync(path.join(__dirname, '../supabase/migrations', name), 'utf8');
+      let sql = fs.readFileSync(path.join(migrationDirectory, name), 'utf8');
       // PGlite lacks pgcrypto. The legacy migrations only enable it;
       // the security migration and all its functions are executed unchanged.
-      if (name !== migrations[2]) sql = sql.replace(/^create extension if not exists pgcrypto;\s*/m, '');
+      sql = sql.replace(/^create extension if not exists pgcrypto;\s*/gm, '');
       await db.exec(sql);
     }
     const admin = (await query("select id, password_hash from public.users where role = 'admin'"))[0];

@@ -375,6 +375,10 @@ h1, h2, h3 { font-family: var(--heading-font); text-wrap: balance; }
 .seat.mine .seat-number, .seat.mine .seat-name { color: var(--gold-soft); }
 .seat.mine .seat-name { font-weight: 700; }
 .seat.occupied { background: rgba(201, 224, 209, .065); }
+.admin-room-panel { margin-bottom: 24px; }
+.admin-seat { display: flex; flex-direction: column; min-height: 148px; padding: 12px 8px; gap: 12px; }
+.admin-seat .seat-name { margin-top: 0; white-space: normal; overflow-wrap: anywhere; line-height: 1.5; }
+.seat-remove { width: 100%; margin-top: auto; min-height: 44px; padding: 6px 3px; font-size: 11px; }
 .side-stack { display: grid; gap: 24px; align-content: start; min-width: 0; }
 .reservation-card, .stats-card { padding: 26px; }
 .reservation-card { border-top: 2px solid rgba(228, 193, 122, .65); }
