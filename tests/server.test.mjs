@@ -233,7 +233,9 @@ test('local development without Supabase supports real registration, sessions, r
     assert.equal((await auth.logoutUser()).error,null);
     assert.ok((await actions.reserveSeatForUser(game)).error);
     const credentials = fs.readFileSync(path.join(directory,'admin-credentials.txt'),'utf8');
-    assert.equal(fs.statSync(path.join(directory,'admin-credentials.txt')).mode & 0o777,0o600);
+    const credentialStats = fs.statSync(path.join(directory,'admin-credentials.txt'));
+    assert.ok(credentialStats.isFile());
+    if (process.platform !== 'win32') assert.equal(credentialStats.mode & 0o777,0o600);
     const name = credentials.match(/Vardas: (.+)/)[1];
     const password = credentials.match(/Slaptažodis: (.+)/)[1];
     assert.equal((await auth.loginUser(name,password)).data.role,'admin');
