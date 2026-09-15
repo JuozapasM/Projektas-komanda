@@ -4,9 +4,13 @@ import { localDatabase } from "./local-database.mjs";
 
 export class AppError extends Error {}
 
+function normalizeEnvValue(value?: string) {
+  return value?.trim().replace(/^[=]+|[=]+$/g, "") ?? "";
+}
+
 export function database(): SupabaseClient {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const url = normalizeEnvValue(process.env.NEXT_PUBLIC_SUPABASE_URL);
+  const key = normalizeEnvValue(process.env.SUPABASE_SERVICE_ROLE_KEY);
   if (!url && !key && process.env.NODE_ENV === "development" && !process.env.VERCEL) {
     return localDatabase();
   }
