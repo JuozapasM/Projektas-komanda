@@ -51,6 +51,9 @@ begin
   if to_regprocedure('public.create_game_date(timestamp with time zone)') is not null then
     raise exception 'LEGACY_UNRESTRICTED_FUNCTION_EXISTS';
   end if;
+  if to_regclass('public.reservation_events_occurred_at_id') is null then
+    raise exception 'MISSING_RESERVATION_EVENT_RETENTION_INDEX';
+  end if;
   if exists (
     select 1 from public.game_dates g left join public.seats s on s.game_date_id = g.id
     group by g.id having count(s.id) <> 16
@@ -60,4 +63,4 @@ begin
 end;
 $$;
 
-select 'OK: lentelės, RLS, serverio teisės, funkcijos ir 16 vietų kiekvienam žaidimui' as result;
+select 'OK: lentelės, RLS, serverio teisės, funkcijos, istorijos indeksas ir 16 vietų kiekvienam žaidimui' as result;

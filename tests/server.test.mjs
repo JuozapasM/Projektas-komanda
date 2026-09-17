@@ -32,9 +32,12 @@ function harness({ signedIn = false, role = 'participant', configured = true, de
   const db = {
     from(table) {
       const filters = [];
-      let operation = 'read', payload, mode;
+      const orders = [];
+      let operation = 'read', payload, mode, rowLimit;
       const builder = {
-        select() {return this;}, order() {return this;}, limit() {return this;},
+        select() {return this;},
+        order(key, {ascending = true} = {}) {orders.push({key,ascending}); return this;},
+        limit(value) {rowLimit=value; return this;},
         eq(key, value) {filters.push(row => row[key] === value); return this;},
         gt(key, value) {filters.push(row => row[key] > value); return this;},
         lt(key, value) {filters.push(row => row[key] < value); return this;},
@@ -55,6 +58,15 @@ function harness({ signedIn = false, role = 'participant', configured = true, de
               if (existing) Object.assign(existing, payload); else rows.push({...payload});
               selected = [payload];
             } else if (operation === 'delete') tables[table] = rows.filter(row => !selected.includes(row));
+            if (operation === 'read' && orders.length) selected.sort((left,right) => {
+              for (const {key,ascending} of orders) {
+                if (left[key] === right[key]) continue;
+                const comparison = left[key] < right[key] ? -1 : 1;
+                return ascending ? comparison : -comparison;
+              }
+              return 0;
+            });
+            if (operation === 'read' && rowLimit !== undefined) selected = selected.slice(0,rowLimit);
             return Promise.resolve({data: mode === 'single' ? selected[0] ?? null : selected, error:null}).then(resolve,reject);
           } catch(error) {return Promise.reject(error).then(resolve,reject);}
         },
@@ -145,6 +157,30 @@ test('unauthenticated requests cannot mutate reservations or winners or read pri
   assert.ok(results.every(result=>result.error));
   assert.equal(app.rpcCalls.length,0);
   assert.equal(app.tables.winner_results.length,0);
+});
+
+test('admin history removes entries older than three months and returns only the latest 100', async () => {
+  const app = harness({signedIn:true,role:'admin'});
+  const now = new Date();
+  const oldDate = new Date(now);
+  oldDate.setUTCMonth(oldDate.getUTCMonth()-4);
+  const event = (id, occurredAt) => ({
+    id, action:'reserved', user_name:'Ieva', table_number:1, seat_number:1,
+    occurred_at:occurredAt, reservation_id:null, game_dates:{starts_at:occurredAt}, reservations:null,
+  });
+  app.tables.reservation_events = [event('old-event',oldDate.toISOString())];
+  for (let index=0;index<105;index++) {
+    app.tables.reservation_events.push(event(`event-${String(index).padStart(3,'0')}`,new Date(now.getTime()-index*60000).toISOString()));
+  }
+
+  const result = await app.load('src/lib/supabase/queries.ts').getReservationEvents();
+
+  assert.equal(result.error,null);
+  assert.equal(result.data.length,100);
+  assert.equal(result.data[0].id,'event-000');
+  assert.equal(result.data[99].id,'event-099');
+  assert.equal(app.tables.reservation_events.length,105);
+  assert.ok(!app.tables.reservation_events.some(item=>item.id==='old-event'));
 });
 
 test('reservation identity comes from the verified session, ignoring a forged caller name', async () => {

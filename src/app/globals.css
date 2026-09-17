@@ -450,6 +450,10 @@ h1, h2, h3 { font-family: var(--heading-font); text-wrap: balance; }
 .admin-table tbody tr:last-child td { border-bottom: 0; }
 .admin-table td strong { font-weight: 600; }
 .admin-table .danger-btn { min-height: 36px; padding: 7px 12px; font-size: 12px; }
+.history-pagination { display: flex; align-items: center; justify-content: center; gap: 12px; min-width: 760px; padding: 22px 14px 6px; border-top: 1px solid var(--line); }
+.history-page-numbers { display: flex; gap: 6px; }
+.history-pagination .ghost-btn { min-width: 38px; min-height: 38px; padding: 7px 11px; }
+.history-pagination .ghost-btn.active { color: var(--background); border-color: var(--gold); background: var(--gold); }
 .status {
   display: inline-flex;
   padding: 5px 10px;

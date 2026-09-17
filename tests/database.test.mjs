@@ -37,6 +37,11 @@ test('SQL migration protects private records, reservation ownership, and durable
     const users = await query("insert into public.users (name, password_hash) select 'Test ' || n, 'test-only' from generate_series(1, 20) n returning id");
     const game = (await query('select id from public.game_dates order by starts_at limit 1'))[0].id;
 
+    await t.test('reservation history has an index for retention and newest-first reads', async () => {
+      const indexes = await query("select indexdef from pg_indexes where schemaname = 'public' and tablename = 'reservation_events'");
+      assert.ok(indexes.some(({indexdef}) => indexdef.includes('(occurred_at DESC, id DESC)')));
+    });
+
     await t.test('the exposed initial admin password is disabled', async () => {
       assert.ok(admin.password_hash.startsWith('!disabled:'));
     });

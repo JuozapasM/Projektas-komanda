@@ -7,6 +7,8 @@ import { loadAdminSeatBoard, rejectReservation } from "@/lib/supabase/reservatio
 import type { AdminSeat, AllTimeWinner, GameDate, ReservationEvent, WinnerTeam } from "@/lib/types";
 import { WinnersBoard } from "./winners-board";
 
+const EVENT_PAGE_SIZE = 25;
+
 function winnerFields(winners: WinnerTeam[]): WinnerTeam[] {
   return ([1, 2, 3] as const).map((place) => {
     const winner = winners.find((item) => item.place === place);
@@ -28,6 +30,7 @@ export function AdminView({ userName, winners, allTimeWinners, onSaveWinners, on
   const [showWinnerForm, setShowWinnerForm] = useState(false);
   const [winnerDraft, setWinnerDraft] = useState<WinnerTeam[]>(() => winnerFields(winners));
   const [events, setEvents] = useState<ReservationEvent[]>([]);
+  const [eventPage, setEventPage] = useState(1);
   const [onlineCount, setOnlineCount] = useState(0);
   const [savingWinners, setSavingWinners] = useState(false);
   const [savingDate, setSavingDate] = useState(false);
@@ -44,7 +47,11 @@ export function AdminView({ userName, winners, allTimeWinners, onSaveWinners, on
         setDates(nextDates.data);
         setSelectedDate(nextDates.data[0]?.id ?? "");
       }
-      if (nextEvents.data) setEvents(nextEvents.data);
+      if (nextEvents.data) {
+        const nextPageCount = Math.max(1, Math.ceil(nextEvents.data.length / EVENT_PAGE_SIZE));
+        setEvents(nextEvents.data);
+        setEventPage((current) => Math.min(current, nextPageCount));
+      }
       if (online.data !== null) setOnlineCount(online.data);
       setNotice(nextDates.error || nextEvents.error || online.error || "");
     }
@@ -95,7 +102,11 @@ export function AdminView({ userName, winners, allTimeWinners, onSaveWinners, on
       const [nextEvents, nextDates, nextBoard] = await Promise.all([
         getReservationEvents(), getGameDates(), selectedDate ? loadAdminSeatBoard(selectedDate) : Promise.resolve(null),
       ]);
-      if (nextEvents.data) setEvents(nextEvents.data);
+      if (nextEvents.data) {
+        const nextPageCount = Math.max(1, Math.ceil(nextEvents.data.length / EVENT_PAGE_SIZE));
+        setEvents(nextEvents.data);
+        setEventPage((current) => Math.min(current, nextPageCount));
+      }
       if (nextDates.data) setDates(nextDates.data);
       if (nextBoard) setBoard({ gameId: selectedDate, seats: nextBoard.data ?? [], error: nextBoard.error ?? "" });
       setNotice(nextEvents.error || nextDates.error || nextBoard?.error || "Žaidėjas pašalintas iš rezervuotos vietos, vieta atlaisvinta.");
@@ -128,6 +139,8 @@ export function AdminView({ userName, winners, allTimeWinners, onSaveWinners, on
   const activeDate = dates.find((date) => date.id === selectedDate);
   const seats = board.gameId === selectedDate ? board.seats : [];
   const loadingSeats = Boolean(selectedDate) && board.gameId !== selectedDate;
+  const eventPageCount = Math.max(1, Math.ceil(events.length / EVENT_PAGE_SIZE));
+  const visibleEvents = events.slice((eventPage - 1) * EVENT_PAGE_SIZE, eventPage * EVENT_PAGE_SIZE);
 
   return (
     <main className="app-background">
@@ -297,7 +310,7 @@ export function AdminView({ userName, winners, allTimeWinners, onSaveWinners, on
               </tr>
             </thead>
             <tbody>
-              {events.map((event) => (
+              {visibleEvents.map((event) => (
                 <tr key={event.id}>
                   <td>
                     <span className={`status ${event.action === "Atšaukimas" ? "cancelled" : event.action === "Atmesta" ? "rejected" : ""}`}>{event.action}</span>
@@ -323,6 +336,27 @@ export function AdminView({ userName, winners, allTimeWinners, onSaveWinners, on
               ))}
             </tbody>
           </table>
+          {eventPageCount > 1 && (
+            <nav className="history-pagination" aria-label="Veiksmų istorijos puslapiai">
+              <button type="button" className="ghost-btn" disabled={eventPage === 1}
+                onClick={() => setEventPage((current) => Math.max(1, current - 1))}>
+                Ankstesnis
+              </button>
+              <div className="history-page-numbers">
+                {Array.from({ length: eventPageCount }, (_, index) => index + 1).map((page) => (
+                  <button type="button" className={`ghost-btn ${page === eventPage ? "active" : ""}`} key={page}
+                    aria-current={page === eventPage ? "page" : undefined} aria-label={`${page} istorijos puslapis`}
+                    onClick={() => setEventPage(page)}>
+                    {page}
+                  </button>
+                ))}
+              </div>
+              <button type="button" className="ghost-btn" disabled={eventPage === eventPageCount}
+                onClick={() => setEventPage((current) => Math.min(eventPageCount, current + 1))}>
+                Kitas
+              </button>
+            </nav>
+          )}
         </div>
         <WinnersBoard lastGameWinners={winners} allTimeWinners={allTimeWinners} />
       </section>

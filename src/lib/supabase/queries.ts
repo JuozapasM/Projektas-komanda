@@ -4,6 +4,19 @@ import { checkDatabase, database, publicError } from "@/lib/server/database";
 import { requireUser } from "@/lib/server/session";
 import type { ActionResult, GameDate, ReservationEvent } from "@/lib/types";
 
+const RESERVATION_EVENT_LIMIT = 100;
+const RESERVATION_EVENT_RETENTION_MONTHS = 3;
+
+function reservationEventCutoff(now = new Date()) {
+  const cutoff = new Date(now);
+  const day = cutoff.getUTCDate();
+  cutoff.setUTCDate(1);
+  cutoff.setUTCMonth(cutoff.getUTCMonth() - RESERVATION_EVENT_RETENTION_MONTHS);
+  const lastDayOfMonth = new Date(Date.UTC(cutoff.getUTCFullYear(), cutoff.getUTCMonth() + 1, 0)).getUTCDate();
+  cutoff.setUTCDate(Math.min(day, lastDayOfMonth));
+  return cutoff.toISOString();
+}
+
 function formatGameDate(value: string) {
   const date = new Date(value);
   const format = (options: Intl.DateTimeFormatOptions) => new Intl.DateTimeFormat("lt-LT", { ...options, timeZone: "Europe/Vilnius" }).format(date);
@@ -29,8 +42,12 @@ export async function getGameDates(): Promise<ActionResult<GameDate[]>> {
 export async function getReservationEvents(): Promise<ActionResult<ReservationEvent[]>> {
   try {
     await requireUser(true);
-    const { data, error } = await database().from("reservation_events")
-      .select("id, action, user_name, table_number, seat_number, occurred_at, reservation_id, game_dates(starts_at), reservations(status)").order("occurred_at", { ascending: false });
+    const db = database();
+    const { error: cleanupError } = await db.from("reservation_events").delete().lt("occurred_at", reservationEventCutoff());
+    checkDatabase(cleanupError);
+    const { data, error } = await db.from("reservation_events")
+      .select("id, action, user_name, table_number, seat_number, occurred_at, reservation_id, game_dates(starts_at), reservations(status)")
+      .order("occurred_at", { ascending: false }).order("id", { ascending: false }).limit(RESERVATION_EVENT_LIMIT);
     checkDatabase(error);
     return { data: (data ?? []).map((event) => {
       const game = event.game_dates as unknown as { starts_at: string } | null;

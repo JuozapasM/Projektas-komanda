@@ -52,13 +52,15 @@ CLI pritaiko tik dar nepritaikytas migracijas. Istorija išsaugoma nuotolinėje 
 
 Jei lentelės jau yra, tačiau `supabase:status` rodo migracijas tik vietinėje pusėje, nevykdykite pirmos migracijos pakartotinai. Patikrinkite, kurie SQL failai iš tikrųjų buvo pritaikyti. `migration repair` tik pataiso istoriją – pačių lentelių ar funkcijų nesukuria. [CLI migracijų istorijos taisymas](https://supabase.com/docs/reference/cli/su).
 
-Tik patvirtinus, kad visos trys esamos migracijos jau pritaikytos:
+Tik patvirtinus, kad trys ankstesnės migracijos jau pritaikytos rankomis:
 
 ```bash
 npx --no-install supabase migration repair 202609140001 202609140002 202609150001 --status applied
 npm run supabase:status
 npm run supabase:plan
 ```
+
+Naujos `202609170001` migracijos kaip pritaikytos nežymėkite, kol jos iš tikrųjų neįvykdėte. Ji pašalina senesnius nei trijų mėnesių veiksmų istorijos įrašus, todėl prieš `supabase:push` peržiūrėkite planą ir, jei šią istoriją reikia archyvuoti, pirmiausia pasidarykite atsarginę kopiją.
 
 Jei pritaikytos tik pirmos dvi, istorijoje pažymėkite tik `202609140001` ir `202609140002`, tada planuokite bei pritaikykite likusias migracijas. Taip išsaugosite paskyras ir rezervacijas. Jeigu nuotolinė schema skiriasi nuo failų, pirmiausia ją peržiūrėkite su atsakingu programuotoju; istorijos žymėjimas neatitaiso schemos skirtumų.
 

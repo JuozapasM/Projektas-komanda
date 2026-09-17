@@ -62,7 +62,8 @@ Projektas komanda/
 │   └── migrations/                   SQL vykdyti šia eilės tvarka:
 │       ├── 202609140001_initial_schema.sql
 │       ├── 202609140002_enable_app_access_and_seed.sql
-│       └── 202609150001_secure_access_and_winners.sql
+│       ├── 202609150001_secure_access_and_winners.sql
+│       └── 202609170001_reservation_event_retention.sql
 ├── tests/
 │   ├── server.test.mjs               Autentifikavimo ir serverio veiksmų testai
 │   ├── database.test.mjs             SQL, teisių ir transakcijų testai
@@ -171,8 +172,9 @@ Migracijų eilės tvarka:
 1. `supabase/migrations/202609140001_initial_schema.sql`
 2. `supabase/migrations/202609140002_enable_app_access_and_seed.sql`
 3. `supabase/migrations/202609150001_secure_access_and_winners.sql`
+4. `supabase/migrations/202609170001_reservation_event_retention.sql`
 
-Jei pirmos dvi jau pritaikytos, paleiskite tik trečią. Nauja migracija išsaugo esamas paskyras ir rezervacijas, uždaro naršyklės prieigą prie privačių lentelių, išjungia anksčiau viešintą pradinį administratoriaus slaptažodį ir sukuria sesijų bei nugalėtojų saugyklas. Jei yra vardų, besiskiriančių tik raidžių dydžiu ar tarpais, prieš migraciją išspręskite jų konfliktą: naujas unikalus indeksas tokių vardų nebeleidžia.
+Jei pirmos dvi jau pritaikytos, pritaikykite likusias migracijas eilės tvarka. Trečia migracija išsaugo esamas paskyras ir rezervacijas, uždaro naršyklės prieigą prie privačių lentelių, išjungia anksčiau viešintą pradinį administratoriaus slaptažodį ir sukuria sesijų bei nugalėtojų saugyklas. Jei yra vardų, besiskiriančių tik raidžių dydžiu ar tarpais, prieš ją išspręskite jų konfliktą: naujas unikalus indeksas tokių vardų nebeleidžia. Ketvirta migracija pašalina senesnę nei trijų mėnesių veiksmų istoriją ir prideda jos datos indeksą.
 
 ## Administratoriaus paskyra
 
@@ -209,7 +211,7 @@ Prisijungimas vardu ir slaptažodžiu tikrinamas serveryje. Naršyklėje saugoma
 
 Rezervavimas, atšaukimas ir atmetimas bei jų istorijos įrašai atliekami vienoje DB transakcijoje. Vieta parenkama atsitiktinai, o unikalūs indeksai neleidžia rezervuoti vienos vietos dukart. Datos, vietos ir istorijos laikas rodomi pagal `Europe/Vilnius`.
 
-Administratoriaus ekrane pasirinkite žaidimo datą, kad matytumėte keturis stalus ir jų žaidėjus. Prie užimtos vietos esantis mygtukas „Pašalinti“ atmeta rezervaciją, atlaisvina vietą ir įrašo veiksmą į istoriją. Žaidėjo paskyra išlieka.
+Administratoriaus ekrane pasirinkite žaidimo datą, kad matytumėte keturis stalus ir jų žaidėjus. Prie užimtos vietos esantis mygtukas „Pašalinti“ atmeta rezervaciją, atlaisvina vietą ir įrašo veiksmą į istoriją. Žaidėjo paskyra išlieka. Istorijoje rodoma iki 100 naujausių veiksmų po 25 viename puslapyje; atidarius istoriją iš bazės pašalinami senesni nei trijų mėnesių įrašai.
 
 Paskutinio žaidimo nugalėtojai išsaugomi `winner_results` lentelėje ir iš naujo įkeliami atidarius puslapį. Visų laikų lentelė skaitoma iš `all_time_winners`; pradiniai rezultatai perkelti iš ankstesnės versijos. Esamas nugalėtojų redagavimo ekranas keičia paskutinio žaidimo rezultatus. Produkcijoje neprijungus Supabase ar nepavykus užklausai aplikacija praneša apie klaidą. Vietinėje kūrimo peržiūroje be Supabase naudojama tik serverio duomenų bazė; naršyklės localStorage autentifikavimui nenaudojamas.
 
