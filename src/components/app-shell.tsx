@@ -60,7 +60,7 @@ export function AppShell() {
     return null;
   }
 
-  if (session === "participant") return <ParticipantDashboard userName={name} onLogout={logout} />;
+  if (session === "participant") return <ParticipantDashboard userName={name} winners={winners} allTimeWinners={allTimeWinners} onLogout={logout} />;
   if (session === "admin") return <AdminView userName={name} winners={winners} allTimeWinners={allTimeWinners} onSaveWinners={persistWinners} onLogout={logout} />;
 
   async function submit(event: React.FormEvent) {

@@ -3,9 +3,12 @@
 import { useEffect, useState } from "react";
 import { getGameDates } from "@/lib/supabase/queries";
 import { cancelSeatForUser, loadSeatBoard, reserveSeatForUser } from "@/lib/supabase/reservations";
-import type { GameDate, Seat } from "@/lib/types";
+import type { AllTimeWinner, GameDate, Seat, WinnerTeam } from "@/lib/types";
+import { WinnersBoard } from "./winners-board";
 
-export function ParticipantDashboard({ userName, onLogout }: { userName: string; onLogout: () => Promise<string | null> }) {
+export function ParticipantDashboard({ userName, winners, allTimeWinners, onLogout }: {
+  userName: string; winners: WinnerTeam[]; allTimeWinners: AllTimeWinner[]; onLogout: () => Promise<string | null>;
+}) {
   const [gameDates, setGameDates] = useState<GameDate[]>([]);
   const [selectedDate, setSelectedDate] = useState("");
   const [seats, setSeats] = useState<Seat[]>([]);
@@ -200,6 +203,8 @@ export function ParticipantDashboard({ userName, onLogout }: { userName: string;
           </div>
         </div>
       </section>
+
+      <WinnersBoard lastGameWinners={winners} allTimeWinners={allTimeWinners} />
     </main>
   );
 }
