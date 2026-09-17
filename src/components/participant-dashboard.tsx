@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { getGameDates } from "@/lib/supabase/queries";
 import { cancelSeatForUser, loadSeatBoard, reserveSeatForUser } from "@/lib/supabase/reservations";
+import { SEATS_PER_TABLE, TABLE_NUMBERS } from "@/lib/constants";
 import type { AllTimeWinner, GameDate, Seat, WinnerTeam } from "@/lib/types";
 import { WinnersBoard } from "./winners-board";
 
@@ -142,11 +143,11 @@ export function ParticipantDashboard({ userName, winners, allTimeWinners, onLogo
             </div>
 
             <div className="tables">
-              {[1, 2, 3, 4].map((table) => (
+              {TABLE_NUMBERS.map((table) => (
                 <div className="table-card" key={table}>
                   <div className="table-title">
                     <strong>Stalas {table}</strong>
-                    <span>4 VIETOS</span>
+                    <span>{SEATS_PER_TABLE} VIETOS</span>
                   </div>
                   <div className="seat-list">
                     {seats

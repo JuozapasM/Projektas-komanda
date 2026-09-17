@@ -24,10 +24,10 @@ test('SQL Editor installation is atomic, protects existing databases, and passes
     await db.exec(sql);
     const verification = await readFile(new URL('../supabase/verify.sql', import.meta.url), 'utf8');
     await db.exec(verification);
-    assert.equal((await db.query('select count(*)::int as n from public.seats')).rows[0].n,48);
+    assert.equal((await db.query('select count(*)::int as n from public.seats')).rows[0].n,84);
     await assert.rejects(db.exec(sql), /APP_ALREADY_EXISTS/);
     await db.exec('rollback');
-    assert.equal((await db.query('select count(*)::int as n from public.seats')).rows[0].n,48);
+    assert.equal((await db.query('select count(*)::int as n from public.seats')).rows[0].n,84);
     await db.exec('grant select on public.users to anon');
     await assert.rejects(db.exec(verification), /PRIVATE_TABLE_EXPOSED/);
   } finally { await db.close(); }

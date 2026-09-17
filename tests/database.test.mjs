@@ -34,7 +34,7 @@ test('SQL migration protects private records, reservation ownership, and durable
       await db.exec(sql);
     }
     const admin = (await query("select id, password_hash from public.users where role = 'admin'"))[0];
-    const users = await query("insert into public.users (name, password_hash) select 'Test ' || n, 'test-only' from generate_series(1, 20) n returning id");
+    const users = await query("insert into public.users (name, password_hash) select 'Test ' || n, 'test-only' from generate_series(1, 32) n returning id");
     const game = (await query('select id from public.game_dates order by starts_at limit 1'))[0].id;
 
     await t.test('reservation history has an index for retention and newest-first reads', async () => {
@@ -67,6 +67,16 @@ test('SQL migration protects private records, reservation ownership, and durable
         });
       }
       assert.equal((await query("select to_regprocedure('public.create_game_date(timestamptz)') as old"))[0].old, null);
+    });
+
+    await t.test('existing and newly created games have seven tables with four seats each', async () => {
+      const existing = (await query('select count(*)::int as seats, count(distinct table_number)::int as tables from public.seats where game_date_id = $1', [game]))[0];
+      assert.deepEqual(existing, {seats:28,tables:7});
+      await asRole('service_role', async () => {
+        const fresh = (await query("select public.create_game_date_secure($1, '2026-12-03T19:00:00+02') as id", [admin.id]))[0].id;
+        const created = (await query('select count(*)::int as seats, count(distinct table_number)::int as tables from public.seats where game_date_id = $1', [fresh]))[0];
+        assert.deepEqual(created, {seats:28,tables:7});
+      });
     });
 
     await t.test('login names cannot bypass uniqueness through case or whitespace', async () => {
@@ -105,12 +115,12 @@ test('SQL migration protects private records, reservation ownership, and durable
       await asRole('service_role', async () => {
         await assert.rejects(query("select public.create_game_date_secure($1, '2026-12-02T19:00:00+02')", [users[0].id]), /FORBIDDEN/);
         const fresh = (await query("select public.create_game_date_secure($1, '2026-12-02T19:00:00+02') as id", [admin.id]))[0].id;
-        for (const user of users.slice(0, 16)) await query('select public.reserve_game_seat($1, $2)', [user.id, fresh]);
+        for (const user of users.slice(0, 28)) await query('select public.reserve_game_seat($1, $2)', [user.id, fresh]);
         const count = (await query('select count(*)::int as total, count(distinct seat_id)::int as seats from public.reservations where game_date_id = $1', [fresh]))[0];
-        assert.deepEqual(count, {total: 16, seats: 16});
-        await assert.rejects(query('select public.reserve_game_seat($1, $2)', [users[16].id, fresh]), /NO_SEATS/);
+        assert.deepEqual(count, {total: 28, seats: 28});
+        await assert.rejects(query('select public.reserve_game_seat($1, $2)', [users[28].id, fresh]), /NO_SEATS/);
         await query('update public.game_dates set is_open = false where id = $1', [fresh]);
-        await assert.rejects(query('select public.reserve_game_seat($1, $2)', [users[17].id, fresh]), /GAME_CLOSED/);
+        await assert.rejects(query('select public.reserve_game_seat($1, $2)', [users[29].id, fresh]), /GAME_CLOSED/);
       });
     });
 

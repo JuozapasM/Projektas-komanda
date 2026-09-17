@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { getCurrentUser, loginUser, logoutUser, registerUser } from "@/lib/auth";
+import { GAME_CAPACITY, TABLE_COUNT } from "@/lib/constants";
 import { AdminView } from "./admin-view";
 import { ParticipantDashboard } from "./participant-dashboard";
 import { WinnersBoard } from "./winners-board";
@@ -119,14 +120,14 @@ export function AppShell() {
             <br />
             <em>jau laukia.</em>
           </h1>
-          <p className="lede">Užsiregistruokite į artimiausią protmūšį ir gaukite atsitiktinę vietą viename iš keturių stalų.</p>
+          <p className="lede">Užsiregistruokite į artimiausią protmūšį ir gaukite atsitiktinę vietą viename iš septynių stalų.</p>
           <div className="hero-note">
             <div>
-              <strong>04</strong>
+              <strong>{String(TABLE_COUNT).padStart(2, "0")}</strong>
               <span>stalai</span>
             </div>
             <div>
-              <strong>16</strong>
+              <strong>{GAME_CAPACITY}</strong>
               <span>vietų</span>
             </div>
             <div>

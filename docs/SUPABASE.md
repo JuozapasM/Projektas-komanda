@@ -60,7 +60,7 @@ npm run supabase:status
 npm run supabase:plan
 ```
 
-Naujos `202609170001` migracijos kaip pritaikytos nežymėkite, kol jos iš tikrųjų neįvykdėte. Ji pašalina senesnius nei trijų mėnesių veiksmų istorijos įrašus, todėl prieš `supabase:push` peržiūrėkite planą ir, jei šią istoriją reikia archyvuoti, pirmiausia pasidarykite atsarginę kopiją.
+Naujų `202609170001` ir `202609170002` migracijų kaip pritaikytų nežymėkite, kol jų iš tikrųjų neįvykdėte. Pirmoji pašalina senesnius nei trijų mėnesių veiksmų istorijos įrašus, todėl prieš `supabase:push` peržiūrėkite planą ir, jei šią istoriją reikia archyvuoti, pirmiausia pasidarykite atsarginę kopiją. Antroji išsaugo rezervacijas ir kiekvienai žaidimo datai prideda stalus nuo 5 iki 7.
 
 Jei pritaikytos tik pirmos dvi, istorijoje pažymėkite tik `202609140001` ir `202609140002`, tada planuokite bei pritaikykite likusias migracijas. Taip išsaugosite paskyras ir rezervacijas. Jeigu nuotolinė schema skiriasi nuo failų, pirmiausia ją peržiūrėkite su atsakingu programuotoju; istorijos žymėjimas neatitaiso schemos skirtumų.
 
@@ -78,7 +78,7 @@ Po sėkmingo vykdymo susiekite CLI ir pažymėkite pritaikytas migracijų versij
 
 ## 3. Patikrinti bazę ir paruošti administratorių
 
-SQL Editor vykdykite `supabase/verify.sql`. Patikra nekeičia įrašų ir nerodo prisijungimo duomenų. Ji patikrina lenteles, RLS, privačių lentelių teises, serverio funkcijų prieigą ir po 16 vietų kiekvienam žaidimui. Sėkmės rezultatas prasideda `OK`; ši patikra nepakeičia prisijungimo ir rezervavimo patikros aplikacijoje.
+SQL Editor vykdykite `supabase/verify.sql`. Patikra nekeičia įrašų ir nerodo prisijungimo duomenų. Ji patikrina lenteles, RLS, privačių lentelių teises, serverio funkcijų prieigą ir po 7 stalus bei 28 vietas kiekvienam žaidimui. Sėkmės rezultatas prasideda `OK`; ši patikra nepakeičia prisijungimo ir rezervavimo patikros aplikacijoje.
 
 ```bash
 cp .env.example .env.local

@@ -2,6 +2,7 @@
 
 import { checkDatabase, database, publicError } from "@/lib/server/database";
 import { requireUser } from "@/lib/server/session";
+import { GAME_CAPACITY } from "@/lib/constants";
 import type { ActionResult, GameDate, ReservationEvent } from "@/lib/types";
 
 const RESERVATION_EVENT_LIMIT = 100;
@@ -35,7 +36,7 @@ export async function getGameDates(): Promise<ActionResult<GameDate[]>> {
     const occupied = new Map<string, number>();
     for (const row of reservations ?? []) occupied.set(row.game_date_id, (occupied.get(row.game_date_id) ?? 0) + 1);
     return { data: (data ?? []).map((game) => ({ id: game.id, ...formatGameDate(game.starts_at),
-      label: game.title || formatGameDate(game.starts_at).label, seatsLeft: Math.max(0, 16 - (occupied.get(game.id) ?? 0)) })), error: null };
+      label: game.title || formatGameDate(game.starts_at).label, seatsLeft: Math.max(0, GAME_CAPACITY - (occupied.get(game.id) ?? 0)) })), error: null };
   } catch (error) { return { data: null, error: publicError(error) }; }
 }
 

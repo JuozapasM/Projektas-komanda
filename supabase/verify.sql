@@ -56,11 +56,11 @@ begin
   end if;
   if exists (
     select 1 from public.game_dates g left join public.seats s on s.game_date_id = g.id
-    group by g.id having count(s.id) <> 16
+    group by g.id having count(s.id) <> 28 or count(distinct s.table_number) <> 7
   ) then
-    raise exception 'INVALID_GAME_CAPACITY: every game must have 16 seats';
+    raise exception 'INVALID_GAME_CAPACITY: every game must have 7 tables and 28 seats';
   end if;
 end;
 $$;
 
-select 'OK: lentelės, RLS, serverio teisės, funkcijos, istorijos indeksas ir 16 vietų kiekvienam žaidimui' as result;
+select 'OK: lentelės, RLS, serverio teisės, funkcijos, istorijos indeksas, 7 stalai ir 28 vietos kiekvienam žaidimui' as result;

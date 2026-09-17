@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { createGameDate } from "@/lib/supabase/admin";
 import { getGameDates, getOnlineCount, getReservationEvents } from "@/lib/supabase/queries";
 import { loadAdminSeatBoard, rejectReservation } from "@/lib/supabase/reservations";
+import { GAME_CAPACITY, SEATS_PER_TABLE, TABLE_NUMBERS } from "@/lib/constants";
 import type { AdminSeat, AllTimeWinner, GameDate, ReservationEvent, WinnerTeam } from "@/lib/types";
 import { WinnersBoard } from "./winners-board";
 
@@ -246,7 +247,7 @@ export function AdminView({ userName, winners, allTimeWinners, onSaveWinners, on
           </div>
           <div className="metric">
             <span>REZERVACIJOS</span>
-            <strong>{activeDate ? Math.max(0, 16 - activeDate.seatsLeft) : 0} / 16</strong>
+            <strong>{activeDate ? Math.max(0, GAME_CAPACITY - activeDate.seatsLeft) : 0} / {GAME_CAPACITY}</strong>
           </div>
           <div className="metric">
             <span>PRISIJUNGĘ DABAR</span>
@@ -260,18 +261,18 @@ export function AdminView({ userName, winners, allTimeWinners, onSaveWinners, on
               <h2>Stalai ir žaidėjai</h2>
               <p>{activeDate ? `${activeDate.date}, ${activeDate.time}. ` : ""}Pašalinus žaidėją jo vieta atlaisvinama.</p>
             </div>
-            {activeDate && <span className="mono capacity">{activeDate.seatsLeft} / 16 LAISVŲ</span>}
+            {activeDate && <span className="mono capacity">{activeDate.seatsLeft} / {GAME_CAPACITY} LAISVŲ</span>}
           </div>
           {!selectedDate ? <p role="status">Pasirinkite arba sukurkite žaidimo datą.</p>
             : loadingSeats ? <p role="status">Įkeliami stalai...</p>
             : board.error ? <p role="alert">{board.error}</p>
             : <div className="tables">
-              {[1, 2, 3, 4].map((tableNumber) => {
+              {TABLE_NUMBERS.map((tableNumber) => {
                 const tableSeats = seats.filter((seat) => seat.tableNumber === tableNumber);
                 return <div className="table-card" key={tableNumber}>
                   <div className="table-title">
                     <strong>{tableNumber} stalas</strong>
-                    <span>{tableSeats.filter((seat) => seat.status === "free").length} / 4 laisvos</span>
+                    <span>{tableSeats.filter((seat) => seat.status === "free").length} / {SEATS_PER_TABLE} laisvos</span>
                   </div>
                   <div className="seat-list">
                     {tableSeats.map((seat) => <div className={`seat admin-seat ${seat.status}`} key={seat.id}>

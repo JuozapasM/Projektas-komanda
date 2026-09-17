@@ -1,14 +1,14 @@
 import type { AllTimeWinner, GameDate, ParticipantActivity, ReservationEvent, Seat, WinnerTeam } from "./types";
 
 export const gameDates: GameDate[] = [
-  { id: "game-1", label: "Spalio 10", day: "PEN", date: "10 SPAL", time: "19:00", seatsLeft: 7 },
-  { id: "game-2", label: "Spalio 17", day: "PEN", date: "17 SPAL", time: "19:00", seatsLeft: 16 },
-  { id: "game-3", label: "Spalio 24", day: "PEN", date: "24 SPAL", time: "19:00", seatsLeft: 16 },
+  { id: "game-1", label: "Spalio 10", day: "PEN", date: "10 SPAL", time: "19:00", seatsLeft: 21 },
+  { id: "game-2", label: "Spalio 17", day: "PEN", date: "17 SPAL", time: "19:00", seatsLeft: 28 },
+  { id: "game-3", label: "Spalio 24", day: "PEN", date: "24 SPAL", time: "19:00", seatsLeft: 28 },
 ];
 
 export function createSeats(): Seat[] {
   const occupied: Record<number, string> = { 2: "Mantas", 5: "Ieva", 8: "Tomas", 10: "Rūta", 13: "Darius", 15: "Gabija", 16: "Lukas" };
-  return Array.from({ length: 16 }, (_, index) => {
+  return Array.from({ length: 28 }, (_, index) => {
     const seatNumber = index + 1;
     return { id: `seat-${seatNumber}`, tableNumber: Math.ceil(seatNumber / 4), seatNumber: ((seatNumber - 1) % 4) + 1, occupant: occupied[seatNumber], status: occupied[seatNumber] ? "occupied" : "free" };
   });
