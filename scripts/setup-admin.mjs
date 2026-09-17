@@ -6,8 +6,8 @@ const password = process.env.ADMIN_PASSWORD ?? '';
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
 if (!url || !key || url.includes('your-project') || key.includes('your-service-role-key')) throw new Error('Įrašykite Supabase URL ir serverio service role raktą į .env.local.');
-if (name.length < 2 || name.length > 40 || password.length < 12 || Buffer.byteLength(password) > 72 || password.includes('your-admin-password')) {
-  throw new Error('ADMIN_NAME turi būti 2–40 simbolių, ADMIN_PASSWORD — bent 12 simbolių ir daugiausiai 72 baitų.');
+if (name.length < 2 || name.length > 40 || password.length < 4 || Buffer.byteLength(password) > 72 || password.includes('your-admin-password')) {
+  throw new Error('ADMIN_NAME turi būti 2–40 simbolių, ADMIN_PASSWORD — bent 4 simbolių ir daugiausiai 72 baitų.');
 }
 const db = createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } });
 const { data: existing, error: readError } = await db.from('users').select('id, role')

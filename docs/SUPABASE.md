@@ -89,7 +89,7 @@ cp .env.example .env.local
 | `NEXT_PUBLIC_SUPABASE_URL` | `.env.local` ir Vercel; pasirinkto projekto URL |
 | `SUPABASE_SERVICE_ROLE_KEY` | Tik serverio aplinkoje; to paties projekto `service_role` arba serverio secret raktas |
 | `ADMIN_NAME` | Tik administratoriaus paruošimui vietoje |
-| `ADMIN_PASSWORD` | Tik administratoriaus paruošimui vietoje; bent 12 simbolių, iki 72 UTF-8 baitų |
+| `ADMIN_PASSWORD` | Tik administratoriaus paruošimui vietoje; bent 4 simboliai, iki 72 UTF-8 baitų |
 
 Serverio raktas turi plačias DB teises, todėl perduodamas privačiai ir neturi `NEXT_PUBLIC_` prefikso. [Supabase API raktų paskirtys](https://supabase.com/docs/guides/getting-started/api-keys).
 

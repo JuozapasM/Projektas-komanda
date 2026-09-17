@@ -176,7 +176,7 @@ Jei pirmos dvi jau pritaikytos, paleiskite tik trečią. Nauja migracija išsaug
 
 ## Administratoriaus paskyra
 
-Į vietinį `.env.local` įrašykite `ADMIN_NAME` (pagal nutylėjimą `Laima`) ir naują `ADMIN_PASSWORD` (bent 12 simbolių, daugiausiai 72 UTF-8 baitai). Tada paleiskite:
+Į vietinį `.env.local` įrašykite `ADMIN_NAME` (pagal nutylėjimą `Laima`) ir naują `ADMIN_PASSWORD` (bent 4 simboliai, daugiausiai 72 UTF-8 baitai). Tada paleiskite:
 
 ```bash
 npm run setup:admin
