@@ -18,6 +18,8 @@ function winnerFields(winners: WinnerTeam[]): WinnerTeam[] {
   });
 }
 
+type WinnerDraft = WinnerTeam & { pointsInput: string };
+
 export function AdminView({ userName, winners, allTimeWinners, onSaveWinners, onLogout }: {
   userName: string; winners: WinnerTeam[]; allTimeWinners: AllTimeWinner[];
   onSaveWinners: (winners: WinnerTeam[]) => Promise<string | null>; onLogout: () => Promise<string | null>;
@@ -29,7 +31,9 @@ export function AdminView({ userName, winners, allTimeWinners, onSaveWinners, on
   const [newDate, setNewDate] = useState("");
   const [newTime, setNewTime] = useState("19:00");
   const [showWinnerForm, setShowWinnerForm] = useState(false);
-  const [winnerDraft, setWinnerDraft] = useState<WinnerTeam[]>(() => winnerFields(winners));
+  const [winnerDraft, setWinnerDraft] = useState<WinnerDraft[]>(() =>
+    winnerFields(winners).map((winner) => ({ ...winner, pointsInput: String(winner.points) })),
+  );
   const [events, setEvents] = useState<ReservationEvent[]>([]);
   const [eventPage, setEventPage] = useState(1);
   const [onlineCount, setOnlineCount] = useState(0);
@@ -129,7 +133,22 @@ export function AdminView({ userName, winners, allTimeWinners, onSaveWinners, on
     event.preventDefault();
     setSavingWinners(true);
     try {
-      const error = await onSaveWinners(winnerDraft.map((winner) => ({ ...winner, players: winner.players.map((player) => player.trim()).filter(Boolean) })));
+      const emptyPointsWinner = winnerDraft.find((winner) => winner.pointsInput.trim() === "");
+      if (emptyPointsWinner) {
+        setNotice(`${emptyPointsWinner.place} vietos taškų laukas negali būti tuščias.`);
+        return;
+      }
+
+      const nextWinners = winnerDraft.map((winner) => {
+        const { pointsInput, ...winnerData } = winner;
+        return {
+          ...winnerData,
+          points: Number(pointsInput.trim()),
+          players: winner.players.map((player) => player.trim()).filter(Boolean),
+        };
+      });
+
+      const error = await onSaveWinners(nextWinners);
       if (error) { setNotice(error); return; }
       setShowWinnerForm(false);
       setNotice("Nugalėtojai išsaugoti.");
@@ -163,7 +182,12 @@ export function AdminView({ userName, winners, allTimeWinners, onSaveWinners, on
             <h1>Visa salė vienoje vietoje.</h1>
           </div>
           <div className="header-actions">
-            <button className="ghost-btn" onClick={() => { if (!showWinnerForm) setWinnerDraft(winnerFields(winners)); setShowWinnerForm(!showWinnerForm); }}>Nugalėtojai</button>
+            <button className="ghost-btn" onClick={() => {
+              if (!showWinnerForm) {
+                setWinnerDraft(winnerFields(winners).map((winner) => ({ ...winner, pointsInput: String(winner.points) })));
+              }
+              setShowWinnerForm(!showWinnerForm);
+            }}>Nugalėtojai</button>
             <button className="primary-btn" onClick={() => setShowDateForm(!showDateForm)}>+ Nauja žaidimo data</button>
           </div>
         </div>
@@ -198,10 +222,10 @@ export function AdminView({ userName, winners, allTimeWinners, onSaveWinners, on
                   <input
                     type="number"
                     min="0"
-                    value={winner.points}
+                    value={winner.pointsInput}
                     onChange={(event) =>
                       setWinnerDraft((current) =>
-                        current.map((item) => (item.place === winner.place ? { ...item, points: Number(event.target.value) } : item)),
+                        current.map((item) => (item.place === winner.place ? { ...item, pointsInput: event.target.value } : item)),
                       )
                     }
                   />
